@@ -25,7 +25,7 @@ const GOAL_TYPES = ["Gol de falta","Gol de pênalti","Gol olímpico","Assistênc
 
 const FORMATIONS = {
   "4-4-2": [
-    { id: "gk", role: "GOL", x: 50, y: 92 },
+    { id: "gk", role: "GOL", x: 50, y: 88 },
     { id: "ld", role: "LAT", x: 80, y: 74 }, { id: "zc1", role: "ZAG", x: 60, y: 78 },
     { id: "zc2", role: "ZAG", x: 40, y: 78 }, { id: "le", role: "LAT", x: 20, y: 74 },
     { id: "md", role: "MEI", x: 78, y: 50 }, { id: "mc1", role: "VOL", x: 58, y: 54 },
@@ -33,14 +33,14 @@ const FORMATIONS = {
     { id: "at1", role: "ATA", x: 38, y: 22 }, { id: "at2", role: "ATA", x: 62, y: 22 },
   ],
   "4-3-3": [
-    { id: "gk", role: "GOL", x: 50, y: 92 },
+    { id: "gk", role: "GOL", x: 50, y: 88 },
     { id: "ld", role: "LAT", x: 80, y: 74 }, { id: "zc1", role: "ZAG", x: 60, y: 78 },
     { id: "zc2", role: "ZAG", x: 40, y: 78 }, { id: "le", role: "LAT", x: 20, y: 74 },
     { id: "mc1", role: "VOL", x: 50, y: 58 }, { id: "mc2", role: "MEI", x: 30, y: 52 }, { id: "mc3", role: "MEI", x: 70, y: 52 },
     { id: "fe", role: "ATA", x: 20, y: 24 }, { id: "fc", role: "ATA", x: 50, y: 18 }, { id: "fd", role: "ATA", x: 80, y: 24 },
   ],
   "4-2-3-1": [
-    { id: "gk", role: "GOL", x: 50, y: 92 },
+    { id: "gk", role: "GOL", x: 50, y: 88 },
     { id: "ld", role: "LAT", x: 80, y: 74 }, { id: "zc1", role: "ZAG", x: 60, y: 78 },
     { id: "zc2", role: "ZAG", x: 40, y: 78 }, { id: "le", role: "LAT", x: 20, y: 74 },
     { id: "v1", role: "VOL", x: 38, y: 58 }, { id: "v2", role: "VOL", x: 62, y: 58 },
@@ -48,7 +48,7 @@ const FORMATIONS = {
     { id: "a1", role: "ATA", x: 50, y: 16 },
   ],
   "3-5-2": [
-    { id: "gk", role: "GOL", x: 50, y: 92 },
+    { id: "gk", role: "GOL", x: 50, y: 88 },
     { id: "z1", role: "ZAG", x: 30, y: 78 }, { id: "z2", role: "ZAG", x: 50, y: 82 }, { id: "z3", role: "ZAG", x: 70, y: 78 },
     { id: "le", role: "LAT", x: 14, y: 52 }, { id: "mc1", role: "VOL", x: 34, y: 56 }, { id: "mc3", role: "MEI", x: 50, y: 48 },
     { id: "mc2", role: "VOL", x: 66, y: 56 }, { id: "ld", role: "LAT", x: 86, y: 52 },
@@ -121,6 +121,7 @@ export default function App() {
   const [tab, setTab] = useState("jogos");
   const [selectedMatchId, setSelectedMatchId] = useState(null);
   const [viewingOpponentId, setViewingOpponentId] = useState(null);
+  const [viewingPlayerId, setViewingPlayerId] = useState(null);
   const [jogosJumpFilter, setJogosJumpFilter] = useState({ type: "todos", competitionId: "todas" });
   const [showAddMatch, setShowAddMatch] = useState(false);
   const [showEditMatch, setShowEditMatch] = useState(false);
@@ -131,6 +132,7 @@ export default function App() {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAddMedia, setShowAddMedia] = useState(false);
   const [showMatchStaff, setShowMatchStaff] = useState(false);
+  const [showPenalties, setShowPenalties] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   useEffect(() => {
@@ -234,8 +236,8 @@ export default function App() {
   }
   function deletePlayer(id) {
     setConfirmDialog({
-      message: "Remover este jogador do elenco?",
-      confirmLabel: "Remover jogador",
+      message: "Excluir este jogador apaga também o vínculo dele com partidas, escalações e estatísticas antigas — isso não pode ser desfeito. Se ele só saiu do time nesta temporada, prefira editar o jogador e desmarcar \"Faz parte do elenco atual\" em vez de excluir. Ainda assim quer excluir?",
+      confirmLabel: "Excluir permanentemente",
       onConfirm: () => {
         persistPlayers(players.filter((p) => p.id !== id));
         setConfirmDialog(null);
@@ -265,7 +267,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div style={S.appShell}>
+      <div className="app-shell" style={S.appShell}>
         <StyleBlock />
         <div style={{ ...S.center, height: 480 }}>
           <p style={{ color: "var(--text-dim)", fontFamily: "var(--font-body)" }}>Carregando dados do time…</p>
@@ -275,64 +277,78 @@ export default function App() {
   }
 
   return (
-    <div style={S.appShell}>
+    <div className="app-shell" style={S.appShell}>
       <StyleBlock />
       <Header config={config} onOpenConfig={() => setShowConfig(true)} />
       <div style={S.content}>
-        {tab === "jogos" && !selectedMatch && !viewingOpponentId && (
-          <JogosTab
-            key={`${jogosJumpFilter.type}-${jogosJumpFilter.competitionId}`}
-            upcoming={upcoming} finished={finished} opponents={opponents} competitions={competitions}
+        {viewingPlayerId ? (
+          <PlayerProfile
+            playerId={viewingPlayerId} players={players} matches={matches}
+            getPlayerStats={getPlayerStats} getGoalkeeperStats={getGoalkeeperStats}
             getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
-            onOpenMatch={(id) => setSelectedMatchId(id)} onAddMatch={() => setShowAddMatch(true)}
-            initialFilterType={jogosJumpFilter.type} initialFilterCompetitionId={jogosJumpFilter.competitionId}
+            onBack={() => setViewingPlayerId(null)}
+            onOpenMatch={(id) => { setViewingPlayerId(null); setTab("jogos"); setViewingOpponentId(null); setSelectedMatchId(id); }}
           />
-        )}
-        {tab === "jogos" && !selectedMatch && viewingOpponentId && (
-          <OpponentHistory
-            opponentId={viewingOpponentId} opponents={opponents} matches={matches}
-            getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
-            onBack={() => setViewingOpponentId(null)} onOpenMatch={(id) => setSelectedMatchId(id)}
-          />
-        )}
-        {tab === "jogos" && selectedMatch && (
-          <MatchDetail
-            match={selectedMatch} config={config} playerById={playerById} players={players}
-            getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
-            getStaffName={getStaffName}
-            onBack={() => setSelectedMatchId(null)} onDelete={() => deleteMatch(selectedMatch.id)}
-            onRegisterScore={() => setShowScoreForm(true)} onEditLineup={() => setShowLineup(true)}
-            onAddEvent={() => setShowAddEvent(true)} onAddMedia={() => setShowAddMedia(true)}
-            onEditMatch={() => setShowEditMatch(true)} onEditStaff={() => setShowMatchStaff(true)}
-            onOpenOpponent={(match) => {
-              let oid = match.opponentId;
-              if (!oid) {
-                const name = getOpponentName(match);
-                const existing = opponents.find((o) => o.name === name);
-                oid = existing ? existing.id : createOpponent(name);
-                persistMatches(matches.map((m) => (m.id === match.id ? { ...m, opponentId: oid } : m)));
-              }
-              setViewingOpponentId(oid);
-              setSelectedMatchId(null);
-            }}
-            onOpenCompetition={(match) => {
-              const info = getCompetitionInfo(match);
-              setJogosJumpFilter({ type: info.type || "todos", competitionId: match.competitionId || "todas" });
-              setSelectedMatchId(null);
-              setViewingOpponentId(null);
-            }}
-            onRemoveEvent={(eventId) => persistMatches(matches.map((m) => m.id === selectedMatch.id ? { ...m, events: m.events.filter((e) => e.id !== eventId) } : m))}
-            onRemoveMedia={(mediaId) => persistMatches(matches.map((m) => m.id === selectedMatch.id ? { ...m, media: (m.media || []).filter((x) => x.id !== mediaId) } : m))}
-          />
-        )}
-        {tab === "elenco" && (
-          <ElencoTab players={players} config={config} getPlayerStats={getPlayerStats} getGoalkeeperStats={getGoalkeeperStats} onAdd={() => setShowAddPlayer("new")} onEdit={(p) => setShowAddPlayer(p)} onDelete={deletePlayer} onOpenConfig={() => setShowConfig(true)} />
-        )}
-        {tab === "stats" && (
-          <StatsTab matches={matches} players={players} competitions={competitions} getCompetitionInfo={getCompetitionInfo} config={config} onUpdateStandings={updateStandings} />
+        ) : (
+          <>
+            {tab === "jogos" && !selectedMatch && !viewingOpponentId && (
+              <JogosTab
+                key={`${jogosJumpFilter.type}-${jogosJumpFilter.competitionId}`}
+                upcoming={upcoming} finished={finished} opponents={opponents} competitions={competitions}
+                getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
+                onOpenMatch={(id) => setSelectedMatchId(id)} onAddMatch={() => setShowAddMatch(true)}
+                initialFilterType={jogosJumpFilter.type} initialFilterCompetitionId={jogosJumpFilter.competitionId}
+              />
+            )}
+            {tab === "jogos" && !selectedMatch && viewingOpponentId && (
+              <OpponentHistory
+                opponentId={viewingOpponentId} opponents={opponents} matches={matches}
+                getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
+                onBack={() => setViewingOpponentId(null)} onOpenMatch={(id) => setSelectedMatchId(id)}
+              />
+            )}
+            {tab === "jogos" && selectedMatch && (
+              <MatchDetail
+                match={selectedMatch} config={config} playerById={playerById} players={players}
+                getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
+                getStaffName={getStaffName}
+                onBack={() => setSelectedMatchId(null)} onDelete={() => deleteMatch(selectedMatch.id)}
+                onRegisterScore={() => setShowScoreForm(true)} onEditLineup={() => setShowLineup(true)}
+                onAddEvent={() => setShowAddEvent(true)} onAddMedia={() => setShowAddMedia(true)}
+                onEditMatch={() => setShowEditMatch(true)} onEditStaff={() => setShowMatchStaff(true)}
+                onEditPenalties={() => setShowPenalties(true)}
+                onOpenPlayer={(id) => setViewingPlayerId(id)}
+                onOpenOpponent={(match) => {
+                  let oid = match.opponentId;
+                  if (!oid) {
+                    const name = getOpponentName(match);
+                    const existing = opponents.find((o) => o.name === name);
+                    oid = existing ? existing.id : createOpponent(name);
+                    persistMatches(matches.map((m) => (m.id === match.id ? { ...m, opponentId: oid } : m)));
+                  }
+                  setViewingOpponentId(oid);
+                  setSelectedMatchId(null);
+                }}
+                onOpenCompetition={(match) => {
+                  const info = getCompetitionInfo(match);
+                  setJogosJumpFilter({ type: info.type || "todos", competitionId: match.competitionId || "todas" });
+                  setSelectedMatchId(null);
+                  setViewingOpponentId(null);
+                }}
+                onRemoveEvent={(eventId) => persistMatches(matches.map((m) => m.id === selectedMatch.id ? { ...m, events: m.events.filter((e) => e.id !== eventId) } : m))}
+                onRemoveMedia={(mediaId) => persistMatches(matches.map((m) => m.id === selectedMatch.id ? { ...m, media: (m.media || []).filter((x) => x.id !== mediaId) } : m))}
+              />
+            )}
+            {tab === "elenco" && (
+              <ElencoTab players={players} config={config} getPlayerStats={getPlayerStats} getGoalkeeperStats={getGoalkeeperStats} onAdd={() => setShowAddPlayer("new")} onEdit={(p) => setShowAddPlayer(p)} onDelete={deletePlayer} onOpenConfig={() => setShowConfig(true)} onOpenPlayer={(id) => setViewingPlayerId(id)} />
+            )}
+            {tab === "stats" && (
+              <StatsTab matches={matches} players={players} competitions={competitions} getCompetitionInfo={getCompetitionInfo} config={config} onUpdateStandings={updateStandings} onOpenPlayer={(id) => setViewingPlayerId(id)} />
+            )}
+          </>
         )}
       </div>
-      <BottomNav tab={tab} onChange={(t) => { setTab(t); setSelectedMatchId(null); setViewingOpponentId(null); }} />
+      <BottomNav tab={tab} onChange={(t) => { setTab(t); setSelectedMatchId(null); setViewingOpponentId(null); setViewingPlayerId(null); }} />
 
       {showConfig && (
         <ConfigModal
@@ -367,6 +383,17 @@ export default function App() {
           onSave={(tecnicoId, auxiliarTecnicoId) => {
             persistMatches(matches.map((m) => (m.id === selectedMatch.id ? { ...m, tecnicoId, auxiliarTecnicoId } : m)));
             setShowMatchStaff(false);
+          }}
+        />
+      )}
+
+      {showPenalties && selectedMatch && (
+        <PenaltyShootoutModal
+          match={selectedMatch} players={players}
+          onClose={() => setShowPenalties(false)}
+          onSave={(penaltyShootout) => {
+            persistMatches(matches.map((m) => (m.id === selectedMatch.id ? { ...m, penaltyShootout } : m)));
+            setShowPenalties(false);
           }}
         />
       )}
@@ -712,8 +739,90 @@ function MatchCard({ match, getOpponentName, getCompetitionInfo, getVenueName, o
   );
 }
 
+function PlayerMatchCard({ match, playerId, getOpponentName, getCompetitionInfo, getVenueName, onClick }) {
+  const compInfo = getCompetitionInfo(match);
+  const comp = COMP_TYPES[compInfo.type] || COMP_TYPES.amistoso;
+  const isFinished = match.status === "encerrado";
+  const venueName = getVenueName(match);
+  const badges = getPlayerBadges(playerId, match.events || []);
+  return (
+    <button style={S.matchCard} onClick={onClick}>
+      <div style={S.matchCardTop}>
+        <span style={{ ...S.pill, background: comp.varBg, color: comp.varText }}>{comp.label}{compInfo.name ? ` · ${compInfo.name}` : ""}</span>
+        <span style={S.matchCardDate}>{formatDateShort(match.date)} · {match.time}</span>
+      </div>
+      <div style={S.matchCardMain}>
+        <div style={S.matchCardTeam}>{getOpponentName(match)}</div>
+        {isFinished ? <div style={S.scoreDigits}>{match.scoreTeam}<span style={S.scoreDash}>–</span>{match.scoreOpponent}</div> : <div style={S.matchCardVs}>vs</div>}
+      </div>
+      {badges && <div style={{ fontSize: 15, marginTop: 6 }}>{badges}</div>}
+      <div style={S.matchCardBottom}>
+        <MapPin size={12} color="var(--text-dim)" />
+        <span>{venueName || (match.homeAway === "casa" ? "Em casa" : match.homeAway === "fora" ? "Fora" : "Local a definir")}</span>
+        <ChevronRight size={16} color="var(--text-dim)" style={{ marginLeft: "auto" }} />
+      </div>
+    </button>
+  );
+}
+
+function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeeperStats, getOpponentName, getCompetitionInfo, getVenueName, onBack, onOpenMatch }) {
+  const player = players.find((p) => p.id === playerId);
+  if (!player) return <EmptyState text="Jogador não encontrado." />;
+
+  const isGoalkeeper = getPositions(player)[0] === "Goleiro";
+  const stats = isGoalkeeper ? getGoalkeeperStats(playerId) : getPlayerStats(playerId);
+
+  const playerMatches = matches.filter((m) => {
+    const slotIds = Object.values(m.lineup?.slots || {});
+    const benchIds = m.lineup?.bench || [];
+    return slotIds.includes(playerId) || benchIds.includes(playerId);
+  }).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+
+  return (
+    <div>
+      <div style={S.detailTopBar}>
+        <button style={S.iconBtn} onClick={onBack} aria-label="Voltar"><ArrowLeft size={20} color="var(--text)" /></button>
+      </div>
+
+      <div style={S.scoreboard}>
+        <JerseyBadge number={player.number} size={54} />
+        <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 600, marginTop: 10, textAlign: "center" }}>{player.name}</div>
+        <div style={S.dimText}>{formatPositions(player)}{player.ativo === false ? " · fora do elenco atual" : ""}</div>
+        <div style={{ ...S.recordGrid, marginTop: 16, gridTemplateColumns: "repeat(3, 1fr)" }}>
+          {isGoalkeeper ? (
+            <>
+              <RecordCell label="Jogos" value={stats.jogos} />
+              <RecordCell label="Gols sofridos" value={stats.golsSofridos} />
+              <RecordCell label="Jogo zero" value={stats.jogosSemSofrerGol} />
+            </>
+          ) : (
+            <>
+              <RecordCell label="Jogos" value={stats.jogos} />
+              <RecordCell label="Gols" value={stats.goals} accent="var(--turf)" />
+              <RecordCell label="Assist." value={stats.assists} />
+            </>
+          )}
+        </div>
+      </div>
+
+      <SectionHeader title="Partidas" />
+      {playerMatches.length === 0 ? (
+        <EmptyState text="Esse jogador ainda não participou de nenhuma partida registrada." />
+      ) : playerMatches.map((m) => (
+        <PlayerMatchCard key={m.id} match={m} playerId={playerId} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName} onClick={() => onOpenMatch(m.id)} />
+      ))}
+
+      {playerMatches.length > 0 && (
+        <div style={S.legendBox}>
+          <span>⚽ gol</span><span>🅰️ assistência</span><span>🟨 amarelo</span><span>🟥 vermelho</span><span>🔄 substituição</span><span>🧤 defesa de pênalti</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Match Detail ---------- */
-function MatchDetail({ match, config, playerById, players, getOpponentName, getCompetitionInfo, getVenueName, getStaffName, onBack, onDelete, onRegisterScore, onEditLineup, onAddEvent, onAddMedia, onOpenOpponent, onOpenCompetition, onEditMatch, onEditStaff, onRemoveEvent, onRemoveMedia }) {
+function MatchDetail({ match, config, playerById, players, getOpponentName, getCompetitionInfo, getVenueName, getStaffName, onBack, onDelete, onRegisterScore, onEditLineup, onAddEvent, onAddMedia, onOpenOpponent, onOpenCompetition, onEditMatch, onEditStaff, onEditPenalties, onOpenPlayer, onRemoveEvent, onRemoveMedia }) {
   const compInfo = getCompetitionInfo(match);
   const comp = COMP_TYPES[compInfo.type] || COMP_TYPES.amistoso;
   const isFinished = match.status === "encerrado";
@@ -776,12 +885,53 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
         {copied && <div style={{ ...S.dimText, marginTop: 6 }}>Texto copiado ✓</div>}
       </div>
 
+      {(isFinished && match.scoreTeam === match.scoreOpponent) || match.penaltyShootout ? (
+        <>
+          <SectionHeader title="Disputa de pênaltis" action={{ label: match.penaltyShootout ? "Editar" : "Adicionar", onClick: onEditPenalties }} />
+          {!match.penaltyShootout ? (
+            <EmptyState text="Empate no tempo normal? Registre aqui a disputa de pênaltis." />
+          ) : (
+            <div style={S.card}>
+              <div style={{ textAlign: "center", marginBottom: 14 }}>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 600 }}>
+                  {match.penaltyShootout.ourKicks.filter((k) => k.scored).length}
+                  <span style={{ color: "var(--text-dim)", fontSize: 20 }}> x </span>
+                  {match.penaltyShootout.opponentKicks.filter((k) => k.result === "gol").length}
+                </div>
+                <div style={S.dimText}>Pênaltis</div>
+              </div>
+              <div style={S.lineupLabel}>Nosso time</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                {match.penaltyShootout.ourKicks.map((k) => {
+                  const p = playerById(k.playerId);
+                  return (
+                    <div key={k.id} style={S.lineupChip}>
+                      <span style={{ fontSize: 14 }}>{k.scored ? "✅" : "❌"}</span>
+                      <span>{p ? p.name : "Jogador removido"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={S.lineupLabel}>Adversário</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {match.penaltyShootout.opponentKicks.map((k) => (
+                  <div key={k.id} style={S.lineupChip}>
+                    <span style={{ fontSize: 14 }}>{k.result === "gol" ? "✅" : k.result === "defendida" ? "🧤" : "❌"}</span>
+                    <span>{k.result === "gol" ? "Gol" : k.result === "defendida" ? "Defendida" : "Perdida"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
+
       <SectionHeader title="Escalação" action={{ label: "Gerenciar", onClick: onEditLineup }} />
       {!hasLineup ? (
         <EmptyState text="Escalação ainda não montada. Toque em Gerenciar para escalar o time no campo." />
       ) : (
         <div style={S.card}>
-          <Pitch formation={formation} slots={slots} playersById={playerById} activeSlotId={null} onSlotClick={() => {}} events={events} captainId={match.lineup?.captainId} />
+          <Pitch formation={formation} slots={slots} playersById={playerById} activeSlotId={null} onSlotClick={(slotId) => { const pid = slots[slotId]; if (pid) onOpenPlayer(pid); }} events={events} captainId={match.lineup?.captainId} />
           {bench.length > 0 && (
             <>
               <div style={{ ...S.lineupLabel, marginTop: 14 }}>Banco</div>
@@ -790,7 +940,7 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
                   <div style={S.benchGroupLabel}>{g.label}</div>
                   <div style={S.lineupGrid}>
                     {g.players.map((p) => (
-                      <div key={p.id} style={S.lineupChip}><JerseyBadge number={p.number} size={26} muted /><span>{p.name}{match.lineup?.captainId === p.id ? " 🅲" : ""}{getPlayerBadges(p.id, events) ? ` ${getPlayerBadges(p.id, events)}` : ""}</span></div>
+                      <div key={p.id} style={{ ...S.lineupChip, cursor: "pointer" }} onClick={() => onOpenPlayer(p.id)}><JerseyBadge number={p.number} size={26} muted /><span>{p.name}{match.lineup?.captainId === p.id ? " 🅲" : ""}{getPlayerBadges(p.id, events) ? ` ${getPlayerBadges(p.id, events)}` : ""}</span></div>
                     ))}
                   </div>
                 </div>
@@ -918,7 +1068,7 @@ function getPlayerBadges(playerId, events) {
 function Pitch({ formation, slots, playersById, activeSlotId, onSlotClick, events, captainId }) {
   const layout = FORMATIONS[formation] || FORMATIONS["4-4-2"];
   return (
-    <svg viewBox="0 0 300 460" style={{ width: "100%", height: "auto", background: "var(--pitch)", borderRadius: 12 }}>
+    <svg viewBox="0 0 300 466" style={{ width: "100%", height: "auto", background: "var(--pitch)", borderRadius: 12 }}>
       <rect x="6" y="6" width="288" height="448" fill="none" stroke="var(--pitch-line)" strokeWidth="2" rx="6" />
       <line x1="6" y1="230" x2="294" y2="230" stroke="var(--pitch-line)" strokeWidth="2" />
       <circle cx="150" cy="230" r="38" fill="none" stroke="var(--pitch-line)" strokeWidth="2" />
@@ -932,14 +1082,27 @@ function Pitch({ formation, slots, playersById, activeSlotId, onSlotClick, event
         const active = activeSlotId === slot.id;
         const badges = player && events ? getPlayerBadges(player.id, events) : "";
         const isCaptain = player && captainId && player.id === captainId;
+        const nameLabel = player ? shortenName(player.name) : "";
+        const nameWidth = Math.min(76, Math.max(30, nameLabel.length * 4.6 + 10));
+        const badgeWidth = Math.min(70, Math.max(24, badges.length * 5.5 + 8));
         return (
           <g key={slot.id} onClick={() => onSlotClick(slot.id)} style={{ cursor: "pointer" }}>
             <circle cx={px} cy={py} r="20" fill={player ? "var(--surface)" : "transparent"} stroke={active ? "var(--amber)" : "var(--turf)"} strokeWidth={active ? 3 : 1.5} strokeDasharray={player ? "0" : "4 3"} />
             <text x={px} y={py + 5} textAnchor="middle" fontFamily="var(--font-display)" fontSize="16" fontWeight="600" fill={player ? "var(--text)" : "var(--text-dim)"}>
               {player ? (player.number ?? "?") : "+"}
             </text>
-            {player && <text x={px} y={py + 32} textAnchor="middle" fontSize="8" fill="var(--text-dim)">{shortenName(player.name)}</text>}
-            {badges && <text x={px} y={py + 43} textAnchor="middle" fontSize="10">{badges}</text>}
+            {player && (
+              <>
+                <rect x={px - nameWidth / 2} y={py + 24} width={nameWidth} height={13} rx={4} fill="rgba(8,8,8,0.78)" />
+                <text x={px} y={py + 33.5} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="var(--text)">{nameLabel}</text>
+              </>
+            )}
+            {badges && (
+              <>
+                <rect x={px - badgeWidth / 2} y={py + 39} width={badgeWidth} height={13} rx={4} fill="rgba(8,8,8,0.78)" />
+                <text x={px} y={py + 48.5} textAnchor="middle" fontSize="9">{badges}</text>
+              </>
+            )}
             {isCaptain && <text x={px + 15} y={py - 12} textAnchor="middle" fontSize="13">🅲</text>}
           </g>
         );
@@ -949,9 +1112,12 @@ function Pitch({ formation, slots, playersById, activeSlotId, onSlotClick, event
 }
 
 /* ---------- Elenco Tab ---------- */
-function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd, onEdit, onDelete, onOpenConfig }) {
+function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd, onEdit, onDelete, onOpenConfig, onOpenPlayer }) {
   const hasStaff = config?.tecnico || config?.auxiliarTecnico;
-  const groups = groupPlayersByPosition(players);
+  const activePlayers = players.filter((p) => p.ativo !== false);
+  const inactivePlayers = players.filter((p) => p.ativo === false);
+  const groups = groupPlayersByPosition(activePlayers);
+  const [showInactive, setShowInactive] = useState(false);
 
   return (
     <div>
@@ -972,8 +1138,8 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
       )}
 
       <SectionHeader title="Elenco" />
-      {players.length === 0 ? (
-        <EmptyState text="Nenhum jogador cadastrado. Toque em + para montar o elenco." />
+      {activePlayers.length === 0 ? (
+        <EmptyState text="Nenhum jogador ativo cadastrado. Toque em + para montar o elenco." />
       ) : (
         groups.map((g, i) => (
           <div key={g.label} style={i > 0 ? S.positionGroup : undefined}>
@@ -983,7 +1149,7 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
                 const isGoalkeeper = getPositions(p)[0] === "Goleiro";
                 const stats = isGoalkeeper ? getGoalkeeperStats(p.id) : getPlayerStats(p.id);
                 return (
-                  <div key={p.id} style={S.playerCard}>
+                  <div key={p.id} style={{ ...S.playerCard, cursor: "pointer" }} onClick={() => onOpenPlayer(p.id)}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <JerseyBadge number={p.number} size={38} />
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -991,8 +1157,8 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
                         <div style={S.playerPos}>{formatPositions(p)}</div>
                       </div>
                       <div style={{ display: "flex", gap: 2 }}>
-                        <button style={S.smallIconBtn} onClick={() => onEdit(p)} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
-                        <button style={S.smallIconBtn} onClick={() => onDelete(p.id)} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
+                        <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
+                        <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
                       </div>
                     </div>
                     <div style={S.playerStatsRow}>
@@ -1017,6 +1183,30 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
           </div>
         ))
       )}
+
+      {inactivePlayers.length > 0 && (
+        <div style={S.positionGroup}>
+          <button style={S.inactiveToggle} onClick={() => setShowInactive(!showInactive)}>
+            {showInactive ? "▾" : "▸"} Jogadores fora do elenco atual ({inactivePlayers.length})
+          </button>
+          {showInactive && (
+            <div style={{ marginTop: 10 }}>
+              {inactivePlayers.map((p) => (
+                <div key={p.id} style={S.lineupPickRow}>
+                  <JerseyBadge number={p.number} size={28} muted />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={S.playerName}>{p.name}</div>
+                    <div style={S.playerPos}>{formatPositions(p)}</div>
+                  </div>
+                  <button style={S.smallIconBtn} onClick={() => onEdit(p)} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
+                  <button style={S.smallIconBtn} onClick={() => onDelete(p.id)} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {players.length > 0 && (
         <div style={S.legendBox}>
           <span><b>J</b> jogos</span>
@@ -1035,13 +1225,18 @@ function StatMini({ label, value }) {
 }
 
 /* ---------- Stats Tab ---------- */
-function StatsTab({ matches, players, competitions, getCompetitionInfo, config, onUpdateStandings }) {
+function StatsTab({ matches, players, competitions, getCompetitionInfo, config, onUpdateStandings, onOpenPlayer }) {
   const [filterCompetitionId, setFilterCompetitionId] = useState("todas");
   const [showStandings, setShowStandings] = useState(false);
 
-  const selectedCompetition = filterCompetitionId === "todas" ? null : competitions.find((c) => c.id === filterCompetitionId);
+  const isTypeFilter = filterCompetitionId.startsWith("tipo:");
+  const selectedCompetition = (filterCompetitionId === "todas" || isTypeFilter) ? null : competitions.find((c) => c.id === filterCompetitionId);
 
-  const filteredMatches = filterCompetitionId === "todas" ? matches : matches.filter((m) => m.competitionId === filterCompetitionId);
+  const filteredMatches = filterCompetitionId === "todas"
+    ? matches
+    : isTypeFilter
+      ? matches.filter((m) => getCompetitionInfo(m).type === filterCompetitionId.slice(5))
+      : matches.filter((m) => m.competitionId === filterCompetitionId);
   const finishedFiltered = filteredMatches.filter((m) => m.status === "encerrado");
   const teamRecord = computeHeadToHead(finishedFiltered);
 
@@ -1068,15 +1263,18 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
       <div style={S.filterRow}>
         <select style={S.filterSelect} value={filterCompetitionId} onChange={(e) => setFilterCompetitionId(e.target.value)}>
           <option value="todas">Tudo (histórico completo)</option>
-          {byType.oficial.length > 0 && (
-            <optgroup label="Oficial">{byType.oficial.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
-          )}
-          {byType.amistoso.length > 0 && (
-            <optgroup label="Amistoso">{byType.amistoso.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
-          )}
-          {byType.festival.length > 0 && (
-            <optgroup label="Festival">{byType.festival.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
-          )}
+          <optgroup label="Oficial">
+            <option value="tipo:oficial">Todos os oficiais</option>
+            {byType.oficial.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </optgroup>
+          <optgroup label="Amistoso">
+            <option value="tipo:amistoso">Todos os amistosos</option>
+            {byType.amistoso.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </optgroup>
+          <optgroup label="Festival">
+            <option value="tipo:festival">Todos os festivais</option>
+            {byType.festival.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </optgroup>
         </select>
       </div>
 
@@ -1135,37 +1333,37 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
 
       <SectionHeader title="Artilharia" />
       {artilheiros.length === 0 ? <EmptyState text="Ninguém balançou as redes ainda com esse filtro." /> : (
-        <div style={S.card}>{artilheiros.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.goals} valueLabel="gols" />)}</div>
+        <div style={S.card}>{artilheiros.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.goals} valueLabel="gols" onClick={() => onOpenPlayer(x.p.id)} />)}</div>
       )}
 
       <SectionHeader title="Assistências" />
       {garcons.length === 0 ? <EmptyState text="Nenhuma assistência registrada com esse filtro." /> : (
-        <div style={S.card}>{garcons.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.assists} valueLabel="assist." />)}</div>
+        <div style={S.card}>{garcons.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.assists} valueLabel="assist." onClick={() => onOpenPlayer(x.p.id)} />)}</div>
       )}
 
       <SectionHeader title="Mais jogos" />
       {maisJogos.length === 0 ? <EmptyState text="Nenhuma partida com escalação registrada com esse filtro." /> : (
-        <div style={S.card}>{maisJogos.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.jogos} valueLabel="jogos" />)}</div>
+        <div style={S.card}>{maisJogos.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.jogos} valueLabel="jogos" onClick={() => onOpenPlayer(x.p.id)} />)}</div>
       )}
 
       <SectionHeader title="Gols de falta" />
       {golsDeFalta.length === 0 ? <EmptyState text="Nenhum gol de falta registrado com esse filtro." /> : (
-        <div style={S.card}>{golsDeFalta.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.golsFalta} valueLabel="gols" />)}</div>
+        <div style={S.card}>{golsDeFalta.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.golsFalta} valueLabel="gols" onClick={() => onOpenPlayer(x.p.id)} />)}</div>
       )}
 
       <SectionHeader title="Pênaltis defendidos" />
       {penaltis.length === 0 ? <EmptyState text="Nenhum pênalti defendido registrado com esse filtro." /> : (
-        <div style={S.card}>{penaltis.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.penaltisDefendidos} valueLabel="defesas" />)}</div>
+        <div style={S.card}>{penaltis.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.penaltisDefendidos} valueLabel="defesas" onClick={() => onOpenPlayer(x.p.id)} />)}</div>
       )}
 
       <SectionHeader title="Cartões amarelos" />
       {amarelados.length === 0 ? <EmptyState text="Ninguém foi advertido com esse filtro." /> : (
-        <div style={S.card}>{amarelados.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.amarelos} valueLabel="cartões" />)}</div>
+        <div style={S.card}>{amarelados.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.amarelos} valueLabel="cartões" onClick={() => onOpenPlayer(x.p.id)} />)}</div>
       )}
 
       <SectionHeader title="Cartões vermelhos" />
       {vermelhados.length === 0 ? <EmptyState text="Ninguém foi expulso com esse filtro." /> : (
-        <div style={S.card}>{vermelhados.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.vermelhos} valueLabel="cartões" />)}</div>
+        <div style={S.card}>{vermelhados.map((x, i) => <RankRow key={x.p.id} rank={i + 1} player={x.p} value={x.stats.vermelhos} valueLabel="cartões" onClick={() => onOpenPlayer(x.p.id)} />)}</div>
       )}
 
       <SectionHeader title="Goleiros" />
@@ -1180,7 +1378,7 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
             <span style={S.goalkeeperHeaderLabel}>Jogo zero</span>
           </div>
           {goleiros.map((x) => (
-            <div key={x.p.id} style={S.goalkeeperRow}>
+            <div key={x.p.id} style={{ ...S.goalkeeperRow, cursor: "pointer" }} onClick={() => onOpenPlayer(x.p.id)}>
               <JerseyBadge number={x.p.number} size={30} />
               <div style={{ flex: 1, minWidth: 0 }}><div style={S.eventMain}>{x.p.name}</div></div>
               <span style={S.goalkeeperValue}>{x.stats.jogos}</span>
@@ -1255,9 +1453,9 @@ function StandingsNumField({ label, value, onChange }) {
 function RecordCell({ label, value, accent }) {
   return <div style={S.recordCell}><div style={{ ...S.recordValue, color: accent || "var(--text)" }}>{value}</div><div style={S.recordLabel}>{label}</div></div>;
 }
-function RankRow({ rank, player, value, valueLabel }) {
+function RankRow({ rank, player, value, valueLabel, onClick }) {
   return (
-    <div style={S.rankRow}>
+    <div style={{ ...S.rankRow, cursor: onClick ? "pointer" : "default" }} onClick={onClick}>
       <span style={S.rankNumber}>{rank}</span>
       <JerseyBadge number={player.number} size={30} />
       <div style={{ flex: 1, minWidth: 0 }}><div style={S.eventMain}>{player.name}</div><div style={S.eventSub}>{formatPositions(player)}</div></div>
@@ -1560,13 +1758,14 @@ function AddPlayerModal({ player, onClose, onSave }) {
   const [number, setNumber] = useState(player?.number ?? "");
   const [mainPosition, setMainPosition] = useState(existingPositions[0] || POSICOES[0]);
   const [secondary, setSecondary] = useState(existingPositions.slice(1));
+  const [ativo, setAtivo] = useState(player?.ativo !== false);
 
   function toggleSecondary(pos) {
     setSecondary((s) => s.includes(pos) ? s.filter((x) => x !== pos) : [...s, pos]);
   }
   function save() {
     if (!name.trim()) return;
-    onSave({ id: player?.id || uid(), name: name.trim(), number: number === "" ? null : Number(number), positions: [mainPosition, ...secondary.filter((p) => p !== mainPosition)] });
+    onSave({ id: player?.id || uid(), name: name.trim(), number: number === "" ? null : Number(number), positions: [mainPosition, ...secondary.filter((p) => p !== mainPosition)], ativo });
   }
 
   return (
@@ -1586,6 +1785,15 @@ function AddPlayerModal({ player, onClose, onSave }) {
           </label>
         ))}
       </Field>
+      {player && (
+        <Field label="Situação no elenco">
+          <label style={S.positionCheckRow}>
+            <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} />
+            Faz parte do elenco atual (temporada vigente)
+          </label>
+          <p style={S.helpText}>Desmarcado, ele some da lista principal do Elenco, mas continua disponível pra escalar em partidas (inclusive antigas) e mantém todo o histórico de estatísticas.</p>
+        </Field>
+      )}
     </ModalShell>
   );
 }
@@ -1600,6 +1808,67 @@ function ScoreModal({ match, getOpponentName, onClose, onSave }) {
         <div style={{ fontFamily: "var(--font-display)", fontSize: 28, color: "var(--text-dim)" }}>×</div>
         <div style={{ textAlign: "center" }}><div style={S.dimText}>{getOpponentName(match)}</div><input style={S.scoreInput} type="number" min="0" value={scoreOpponent} onChange={(e) => setScoreOpponent(e.target.value)} /></div>
       </div>
+    </ModalShell>
+  );
+}
+
+function PenaltyShootoutModal({ match, players, onClose, onSave }) {
+  const [ourKicks, setOurKicks] = useState((match.penaltyShootout?.ourKicks || []).map((k) => ({ ...k })));
+  const [opponentKicks, setOpponentKicks] = useState((match.penaltyShootout?.opponentKicks || []).map((k) => ({ ...k })));
+
+  function addOurKick() { setOurKicks([...ourKicks, { id: uid(), playerId: players[0]?.id || "", scored: true }]); }
+  function updateOurKick(id, field, value) { setOurKicks(ourKicks.map((k) => (k.id === id ? { ...k, [field]: value } : k))); }
+  function removeOurKick(id) { setOurKicks(ourKicks.filter((k) => k.id !== id)); }
+
+  function addOpponentKick() { setOpponentKicks([...opponentKicks, { id: uid(), result: "gol" }]); }
+  function updateOpponentKick(id, value) { setOpponentKicks(opponentKicks.map((k) => (k.id === id ? { ...k, result: value } : k))); }
+  function removeOpponentKick(id) { setOpponentKicks(opponentKicks.filter((k) => k.id !== id)); }
+
+  const ourScore = ourKicks.filter((k) => k.scored).length;
+  const theirScore = opponentKicks.filter((k) => k.result === "gol").length;
+
+  return (
+    <ModalShell title="Disputa de pênaltis" onClose={onClose} footer={<button style={S.primaryBtn} onClick={() => onSave({ ourKicks, opponentKicks })}>Salvar disputa</button>}>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
+        <div style={{ fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 600 }}>
+          {ourScore} <span style={{ color: "var(--text-dim)", fontSize: 22 }}>x</span> {theirScore}
+        </div>
+        <div style={S.dimText}>Placar da disputa</div>
+      </div>
+
+      <div style={S.lineupLabel}>Nosso time</div>
+      {ourKicks.length === 0 ? (
+        <p style={S.helpText}>Nenhuma cobrança registrada ainda.</p>
+      ) : ourKicks.map((k, i) => (
+        <div key={k.id} style={S.penaltyRow}>
+          <span style={S.dimText}>{i + 1}</span>
+          <select style={{ ...S.input, flex: 1 }} value={k.playerId} onChange={(e) => updateOurKick(k.id, "playerId", e.target.value)}>
+            {players.map((p) => <option key={p.id} value={p.id}>#{p.number ?? "-"} {p.name}</option>)}
+          </select>
+          <button style={{ ...S.penaltyToggle, background: k.scored ? "var(--turf-dim)" : "var(--surface-2)" }} onClick={() => updateOurKick(k.id, "scored", !k.scored)}>
+            {k.scored ? "✅" : "❌"}
+          </button>
+          <button style={S.smallIconBtn} onClick={() => removeOurKick(k.id)}><Trash2 size={14} color="var(--text-dim)" /></button>
+        </div>
+      ))}
+      <button style={{ ...S.ghostBtnSmall, width: "100%", padding: "8px 0", marginTop: 4 }} onClick={addOurKick}>+ Adicionar cobrança</button>
+
+      <div style={{ ...S.lineupLabel, marginTop: 20 }}>Adversário</div>
+      {opponentKicks.length === 0 ? (
+        <p style={S.helpText}>Nenhuma cobrança registrada ainda.</p>
+      ) : opponentKicks.map((k, i) => (
+        <div key={k.id} style={S.penaltyRow}>
+          <span style={S.dimText}>{i + 1}</span>
+          <select style={{ ...S.input, flex: 1 }} value={k.result} onChange={(e) => updateOpponentKick(k.id, e.target.value)}>
+            <option value="gol">Gol</option>
+            <option value="perdida">Perdida / pra fora</option>
+            <option value="defendida">Defendida pelo goleiro</option>
+          </select>
+          <button style={S.smallIconBtn} onClick={() => removeOpponentKick(k.id)}><Trash2 size={14} color="var(--text-dim)" /></button>
+        </div>
+      ))}
+      <button style={{ ...S.ghostBtnSmall, width: "100%", padding: "8px 0", marginTop: 4 }} onClick={addOpponentKick}>+ Adicionar cobrança</button>
+      <p style={S.helpText}>Como não temos o elenco do adversário, as cobranças deles ficam sem nome — só o resultado de cada uma.</p>
     </ModalShell>
   );
 }
@@ -1909,6 +2178,9 @@ function StyleBlock() {
         --font-display: 'Teko', sans-serif; --font-body: 'Manrope', sans-serif;
       }
       * { box-sizing: border-box; }
+      html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+      .app-shell { height: 100vh; }
+      @supports (height: 100dvh) { .app-shell { height: 100dvh; } }
       input, select { font-family: var(--font-body); }
       input::placeholder { color: var(--text-dim); }
       input:focus, select:focus { outline: none; border-color: var(--turf); }
@@ -1922,7 +2194,7 @@ function StyleBlock() {
 
 /* ---------- Inline style objects ---------- */
 const S = {
-  appShell: { width: "100%", maxWidth: 460, margin: "0 auto", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-body)", minHeight: 640, borderRadius: 16, overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" },
+  appShell: { width: "100%", maxWidth: 460, margin: "0 auto", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-body)", height: "100vh", borderRadius: 16, overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" },
   center: { display: "flex", alignItems: "center", justifyContent: "center" },
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 14px", borderBottom: "1px solid var(--line)" },
   headerEmoji: { width: 38, height: 38, borderRadius: 10, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 },
@@ -1980,6 +2252,7 @@ const S = {
   playerGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
   positionGroup: { marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)" },
   positionGroupLabel: { fontSize: 11.5, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 },
+  inactiveToggle: { background: "transparent", border: "none", color: "var(--text-dim)", fontSize: 12.5, fontWeight: 600, padding: 0, textAlign: "left", width: "100%" },
   benchGroupLabel: { fontSize: 10.5, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5, margin: "10px 0 6px" },
   staffGrid: { display: "flex", flexDirection: "column", gap: 12 },
   staffRow: { display: "flex", alignItems: "center", gap: 10 },
@@ -2033,5 +2306,7 @@ const S = {
   removeSlotBtn: { width: "100%", textAlign: "left", color: "var(--danger)", fontSize: 12, padding: "6px 0", background: "transparent", border: "none", marginBottom: 6 },
   assignList: { maxHeight: 220, overflowY: "auto" },
   assignRow: { width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 4px", background: "transparent", border: "none", borderBottom: "1px solid var(--line)", color: "var(--text)" },
+  penaltyRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 },
+  penaltyToggle: { width: 40, height: 40, borderRadius: 8, border: "1px solid var(--line)", fontSize: 16, flexShrink: 0 },
   suggestedTag: { fontSize: 10, color: "var(--turf)", border: "1px solid var(--turf)", borderRadius: 999, padding: "1px 6px", marginLeft: "auto" },
 };
