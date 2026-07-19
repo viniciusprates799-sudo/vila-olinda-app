@@ -130,7 +130,7 @@ export default function App() {
   const [showConfig, setShowConfig] = useState(false);
   const [showScoreForm, setShowScoreForm] = useState(false);
   const [showLineup, setShowLineup] = useState(false);
-  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showAddEvent, setShowAddEvent] = useState(null);
   const [showAddMedia, setShowAddMedia] = useState(false);
   const [showMatchStaff, setShowMatchStaff] = useState(false);
   const [showPenalties, setShowPenalties] = useState(false);
@@ -228,6 +228,7 @@ export default function App() {
   }
 
   function getOpponentName(match) {
+    if (match.opponentType === "avulso") return match.opponentName || "Adversário avulso";
     return opponents.find((o) => o.id === match.opponentId)?.name || match.opponent || "Adversário";
   }
   function getCompetitionInfo(match) {
@@ -349,7 +350,7 @@ export default function App() {
                 getStaffName={getStaffName}
                 onBack={() => setSelectedMatchId(null)} onDelete={() => deleteMatch(selectedMatch.id)}
                 onRegisterScore={() => setShowScoreForm(true)} onEditLineup={() => setShowLineup(true)}
-                onAddEvent={() => setShowAddEvent(true)} onAddMedia={() => setShowAddMedia(true)}
+                onAddEvent={() => setShowAddEvent("new")} onEditEvent={(ev) => setShowAddEvent(ev)} onAddMedia={() => setShowAddMedia(true)}
                 onEditMatch={() => setShowEditMatch(true)} onEditStaff={() => setShowMatchStaff(true)}
                 onEditPenalties={() => setShowPenalties(true)}
                 onOpenPlayer={(id) => setViewingPlayerId(id)}
@@ -467,8 +468,15 @@ export default function App() {
       {showAddEvent && selectedMatch && (
         <AddEventModal
           match={selectedMatch} players={players}
-          onClose={() => setShowAddEvent(false)}
-          onSave={(event) => { persistMatches(matches.map((m) => m.id === selectedMatch.id ? { ...m, events: [...(m.events || []), event] } : m)); setShowAddEvent(false); }}
+          event={showAddEvent === "new" ? null : showAddEvent}
+          onClose={() => setShowAddEvent(null)}
+          onSave={(event) => {
+            const isEdit = showAddEvent !== "new";
+            persistMatches(matches.map((m) => m.id === selectedMatch.id
+              ? { ...m, events: isEdit ? m.events.map((e) => (e.id === event.id ? event : e)) : [...(m.events || []), event] }
+              : m));
+            setShowAddEvent(null);
+          }}
         />
       )}
 
@@ -595,8 +603,10 @@ function computePlayerStats(matches, playerId) {
   matches.forEach((m) => {
     const slotIds = Object.values(m.lineup?.slots || {});
     const benchIds = m.lineup?.bench || [];
-    if (slotIds.includes(playerId) || benchIds.includes(playerId)) jogos++;
-    (m.events || []).forEach((e) => {
+    const events = m.events || [];
+    const enteredFromBench = events.some((e) => e.type === "substituicao" && e.playerInId === playerId);
+    if (slotIds.includes(playerId) || (benchIds.includes(playerId) && enteredFromBench)) jogos++;
+    events.forEach((e) => {
       if (e.type === "gol" && e.playerId === playerId) goals++;
       if (e.type === "gol" && e.assistId === playerId) assists++;
       if (e.type === "gol" && e.playerId === playerId && e.golType === "Gol de falta") golsFalta++;
@@ -810,7 +820,8 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
   const playerMatches = matches.filter((m) => {
     const slotIds = Object.values(m.lineup?.slots || {});
     const benchIds = m.lineup?.bench || [];
-    return slotIds.includes(playerId) || benchIds.includes(playerId);
+    const enteredFromBench = (m.events || []).some((e) => e.type === "substituicao" && e.playerInId === playerId);
+    return slotIds.includes(playerId) || (benchIds.includes(playerId) && enteredFromBench);
   }).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
   return (
@@ -856,7 +867,7 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
 }
 
 /* ---------- Match Detail ---------- */
-function MatchDetail({ match, config, playerById, players, getOpponentName, getCompetitionInfo, getVenueName, getStaffName, onBack, onDelete, onRegisterScore, onEditLineup, onAddEvent, onAddMedia, onOpenOpponent, onOpenCompetition, onEditMatch, onEditStaff, onEditPenalties, onOpenPlayer, onRemoveEvent, onRemoveMedia }) {
+function MatchDetail({ match, config, playerById, players, getOpponentName, getCompetitionInfo, getVenueName, getStaffName, onBack, onDelete, onRegisterScore, onEditLineup, onAddEvent, onEditEvent, onAddMedia, onOpenOpponent, onOpenCompetition, onEditMatch, onEditStaff, onEditPenalties, onOpenPlayer, onRemoveEvent, onRemoveMedia }) {
   const compInfo = getCompetitionInfo(match);
   const comp = COMP_TYPES[compInfo.type] || COMP_TYPES.amistoso;
   const isFinished = match.status === "encerrado";
@@ -901,7 +912,11 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
         <div style={S.scoreboardRow}>
           <div style={S.scoreboardTeam}>{config.name}</div>
           {isFinished ? <div style={S.scoreboardDigits}>{match.scoreTeam} – {match.scoreOpponent}</div> : <div style={S.scoreboardVs}>vs</div>}
-          <button style={S.scoreboardTeamBtn} onClick={() => onOpenOpponent(match)}>{getOpponentName(match)}</button>
+          {match.opponentType === "avulso" ? (
+            <div style={S.scoreboardTeam}>{getOpponentName(match)}</div>
+          ) : (
+            <button style={S.scoreboardTeamBtn} onClick={() => onOpenOpponent(match)}>{getOpponentName(match)}</button>
+          )}
         </div>
         <div style={S.scoreboardMeta}><span><Calendar size={13} /> {formatDateLong(match.date)}</span><span><Clock size={13} /> {match.time}</span></div>
         {venueName && <div style={S.scoreboardMeta}><MapPin size={13} /> {venueName}</div>}
@@ -1008,7 +1023,7 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
       {events.length === 0 ? (
         <EmptyState text="Nenhum gol ou cartão registrado ainda." />
       ) : (
-        <div style={S.card}>{events.map((e) => <EventRow key={e.id} event={e} playerById={playerById} onRemove={() => onRemoveEvent(e.id)} />)}</div>
+        <div style={S.card}>{events.map((e) => <EventRow key={e.id} event={e} playerById={playerById} onOpenPlayer={onOpenPlayer} onEdit={() => onEditEvent(e)} onRemove={() => onRemoveEvent(e.id)} />)}</div>
       )}
 
       <SectionHeader title="Mídias" action={{ label: "Adicionar", onClick: onAddMedia }} />
@@ -1058,7 +1073,16 @@ function MediaImage({ url, sourceUrl, caption }) {
   );
 }
 
-function EventRow({ event, playerById, onRemove }) {
+function PlayerLink({ player, onOpenPlayer, children }) {
+  if (!player) return <>{children}</>;
+  return (
+    <span style={S.playerLink} onClick={(e) => { e.stopPropagation(); onOpenPlayer(player.id); }}>
+      {children}
+    </span>
+  );
+}
+
+function EventRow({ event, playerById, onOpenPlayer, onEdit, onRemove }) {
   const scorer = playerById(event.playerId);
   const assist = event.assistId ? playerById(event.assistId) : null;
   const playerOut = event.playerOutId ? playerById(event.playerOutId) : null;
@@ -1067,23 +1091,31 @@ function EventRow({ event, playerById, onRemove }) {
     <div style={S.eventRow}>
       <span style={S.eventMinute}>{event.minute}'</span>
       {event.type === "gol" && (
-        <><span style={S.eventIcon}>⚽</span><div style={{ flex: 1 }}><div style={S.eventMain}>{scorer ? scorer.name : "Jogador removido"}</div>{event.golType && <div style={S.eventSub}>{event.golType}</div>}{assist && <div style={S.eventSub}>Assistência: {assist.name}</div>}</div></>
+        <><span style={S.eventIcon}>⚽</span><div style={{ flex: 1 }}>
+          <div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink></div>
+          {event.golType && <div style={S.eventSub}>{event.golType}</div>}
+          {assist && <div style={S.eventSub}>Assistência: <PlayerLink player={assist} onOpenPlayer={onOpenPlayer}>{assist.name}</PlayerLink></div>}
+        </div></>
       )}
       {event.type === "amarelo" && (
-        <><span style={{ ...S.cardChip, background: "var(--amber)" }} /><div style={{ flex: 1 }}><div style={S.eventMain}>{scorer ? scorer.name : "Jogador removido"}</div><div style={S.eventSub}>Cartão amarelo</div></div></>
+        <><span style={{ ...S.cardChip, background: "var(--amber)" }} /><div style={{ flex: 1 }}><div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink></div><div style={S.eventSub}>Cartão amarelo</div></div></>
       )}
       {event.type === "vermelho" && (
-        <><span style={{ ...S.cardChip, background: "var(--danger)" }} /><div style={{ flex: 1 }}><div style={S.eventMain}>{scorer ? scorer.name : "Jogador removido"}</div><div style={S.eventSub}>Cartão vermelho</div></div></>
+        <><span style={{ ...S.cardChip, background: "var(--danger)" }} /><div style={{ flex: 1 }}><div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink></div><div style={S.eventSub}>Cartão vermelho</div></div></>
       )}
       {event.type === "substituicao" && (
-        <><span style={S.eventIcon}>🔄</span><div style={{ flex: 1 }}><div style={S.eventMain}>{playerIn ? playerIn.name : "Jogador removido"} entra</div><div style={S.eventSub}>Sai: {playerOut ? playerOut.name : "Jogador removido"}</div></div></>
+        <><span style={S.eventIcon}>🔄</span><div style={{ flex: 1 }}>
+          <div style={S.eventMain}><PlayerLink player={playerIn} onOpenPlayer={onOpenPlayer}>{playerIn ? playerIn.name : "Jogador removido"}</PlayerLink> entra</div>
+          <div style={S.eventSub}>Sai: <PlayerLink player={playerOut} onOpenPlayer={onOpenPlayer}>{playerOut ? playerOut.name : "Jogador removido"}</PlayerLink></div>
+        </div></>
       )}
       {event.type === "golcontra" && (
         <><span style={S.eventIcon}>🥅</span><div style={{ flex: 1 }}><div style={S.eventMain}>Gol contra (a favor)</div><div style={S.eventSub}>Ponto para o nosso time{event.note ? ` · ${event.note}` : ""}</div></div></>
       )}
       {event.type === "penaltidefendido" && (
-        <><span style={S.eventIcon}>🧤</span><div style={{ flex: 1 }}><div style={S.eventMain}>{scorer ? scorer.name : "Jogador removido"}</div><div style={S.eventSub}>Pênalti defendido</div></div></>
+        <><span style={S.eventIcon}>🧤</span><div style={{ flex: 1 }}><div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink></div><div style={S.eventSub}>Pênalti defendido</div></div></>
       )}
+      <button style={S.smallIconBtn} onClick={onEdit} aria-label="Editar evento"><Pencil size={13} color="var(--text-dim)" /></button>
       <button style={S.smallIconBtn} onClick={onRemove} aria-label="Remover evento"><Trash2 size={14} color="var(--text-dim)" /></button>
     </div>
   );
@@ -1549,6 +1581,35 @@ function ConfirmModal({ message, confirmLabel, onCancel, onConfirm }) {
   );
 }
 
+function OpponentField({ opponentType, setOpponentType, opponentId, setOpponentId, opponentName, setOpponentName, opponents, onCreateOpponent }) {
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <button
+          style={{ ...S.segmentBtn, ...(opponentType === "cadastrado" ? S.segmentBtnActive : {}) }}
+          onClick={() => setOpponentType("cadastrado")}
+        >
+          Time cadastrado
+        </button>
+        <button
+          style={{ ...S.segmentBtn, ...(opponentType === "avulso" ? S.segmentBtnActive : {}) }}
+          onClick={() => setOpponentType("avulso")}
+        >
+          Avulso / catado
+        </button>
+      </div>
+      {opponentType === "cadastrado" ? (
+        <EntityPicker label="Adversário" items={opponents} valueId={opponentId} onChange={setOpponentId} onCreate={onCreateOpponent} placeholder="Ex: Grêmio da Praça" />
+      ) : (
+        <Field label="Descrição do adversário">
+          <input style={S.input} value={opponentName} onChange={(e) => setOpponentName(e.target.value)} placeholder="Ex: Pessoal do campo do Bosque, time misto de sábado" />
+          <p style={S.helpText}>Não cria cadastro nem histórico de confronto — é só uma descrição livre pra esse jogo específico.</p>
+        </Field>
+      )}
+    </div>
+  );
+}
+
 function EntityPicker({ label, items, valueId, onChange, onCreate, placeholder }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -1675,13 +1736,16 @@ function EditMatchModal({ match, opponents, competitions, venues, onCreateOppone
   const existingCompetition = competitions.find((c) => c.id === match.competitionId);
   const [date, setDate] = useState(match.date || "");
   const [time, setTime] = useState(match.time || "");
+  const [opponentType, setOpponentType] = useState(match.opponentType || "cadastrado");
   const [opponentId, setOpponentId] = useState(match.opponentId || "");
+  const [opponentName, setOpponentName] = useState(match.opponentName || "");
   const [competitionType, setCompetitionType] = useState(match.competitionType || existingCompetition?.type || "amistoso");
   const [competitionId, setCompetitionId] = useState(match.competitionId || "");
   const [homeAway, setHomeAway] = useState(match.homeAway || "casa");
   const [venueId, setVenueId] = useState(match.venueId || "");
 
   const needsCompetitionName = competitionType !== "amistoso";
+  const opponentValid = opponentType === "cadastrado" ? !!opponentId : !!opponentName.trim();
 
   function handleTypeChange(next) {
     setCompetitionType(next);
@@ -1689,14 +1753,25 @@ function EditMatchModal({ match, opponents, competitions, venues, onCreateOppone
   }
 
   function save() {
-    if (!date || !opponentId) return;
+    if (!date || !opponentValid) return;
     if (needsCompetitionName && !competitionId) return;
-    onSave({ ...match, date, time: time || "00:00", opponentId, competitionType, competitionId: competitionId || null, homeAway, venueId });
+    onSave({
+      ...match, date, time: time || "00:00",
+      opponentType,
+      opponentId: opponentType === "cadastrado" ? opponentId : null,
+      opponentName: opponentType === "avulso" ? opponentName.trim() : null,
+      competitionType, competitionId: competitionId || null, homeAway, venueId,
+    });
   }
 
   return (
-    <ModalShell title="Editar partida" onClose={onClose} footer={<button style={S.primaryBtn} onClick={save} disabled={!date || !opponentId || (needsCompetitionName && !competitionId)}>Salvar alterações</button>}>
-      <EntityPicker label="Adversário" items={opponents} valueId={opponentId} onChange={setOpponentId} onCreate={onCreateOpponent} placeholder="Ex: Grêmio da Praça" />
+    <ModalShell title="Editar partida" onClose={onClose} footer={<button style={S.primaryBtn} onClick={save} disabled={!date || !opponentValid || (needsCompetitionName && !competitionId)}>Salvar alterações</button>}>
+      <OpponentField
+        opponentType={opponentType} setOpponentType={setOpponentType}
+        opponentId={opponentId} setOpponentId={setOpponentId}
+        opponentName={opponentName} setOpponentName={setOpponentName}
+        opponents={opponents} onCreateOpponent={onCreateOpponent}
+      />
       <div style={{ display: "flex", gap: 10 }}>
         <Field label="Data"><input style={S.input} type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         <Field label="Horário"><input style={S.input} type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
@@ -1725,13 +1800,16 @@ function EditMatchModal({ match, opponents, competitions, venues, onCreateOppone
 function AddMatchModal({ opponents, competitions, venues, onCreateOpponent, onCreateCompetition, onCreateVenue, onClose, onSave }) {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const [opponentType, setOpponentType] = useState("cadastrado");
   const [opponentId, setOpponentId] = useState("");
+  const [opponentName, setOpponentName] = useState("");
   const [competitionType, setCompetitionType] = useState("amistoso");
   const [competitionId, setCompetitionId] = useState("");
   const [homeAway, setHomeAway] = useState("casa");
   const [venueId, setVenueId] = useState("");
 
   const needsCompetitionName = competitionType !== "amistoso";
+  const opponentValid = opponentType === "cadastrado" ? !!opponentId : !!opponentName.trim();
 
   function handleTypeChange(next) {
     setCompetitionType(next);
@@ -1739,18 +1817,27 @@ function AddMatchModal({ opponents, competitions, venues, onCreateOpponent, onCr
   }
 
   function save() {
-    if (!date || !opponentId) return;
+    if (!date || !opponentValid) return;
     if (needsCompetitionName && !competitionId) return;
     onSave({
-      id: uid(), date, time: time || "00:00", opponentId, competitionType, competitionId: competitionId || null, homeAway, venueId,
+      id: uid(), date, time: time || "00:00",
+      opponentType,
+      opponentId: opponentType === "cadastrado" ? opponentId : null,
+      opponentName: opponentType === "avulso" ? opponentName.trim() : null,
+      competitionType, competitionId: competitionId || null, homeAway, venueId,
       status: "agendado", scoreTeam: null, scoreOpponent: null,
       lineup: { formation: "4-4-2", slots: {}, bench: [] }, events: [], media: [], tecnicoId: null, auxiliarTecnicoId: null,
     });
   }
 
   return (
-    <ModalShell title="Nova partida" onClose={onClose} footer={<button style={S.primaryBtn} onClick={save} disabled={!date || !opponentId || (needsCompetitionName && !competitionId)}>Salvar partida</button>}>
-      <EntityPicker label="Adversário" items={opponents} valueId={opponentId} onChange={setOpponentId} onCreate={onCreateOpponent} placeholder="Ex: Grêmio da Praça" />
+    <ModalShell title="Nova partida" onClose={onClose} footer={<button style={S.primaryBtn} onClick={save} disabled={!date || !opponentValid || (needsCompetitionName && !competitionId)}>Salvar partida</button>}>
+      <OpponentField
+        opponentType={opponentType} setOpponentType={setOpponentType}
+        opponentId={opponentId} setOpponentId={setOpponentId}
+        opponentName={opponentName} setOpponentName={setOpponentName}
+        opponents={opponents} onCreateOpponent={onCreateOpponent}
+      />
       <div style={{ display: "flex", gap: 10 }}>
         <Field label="Data"><input style={S.input} type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         <Field label="Horário"><input style={S.input} type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
@@ -2018,7 +2105,7 @@ function EscalacaoModal({ match, players, onClose, onSave }) {
   );
 }
 
-function AddEventModal({ match, players, onClose, onSave }) {
+function AddEventModal({ match, players, event, onClose, onSave }) {
   const onFieldIds = Object.values(match.lineup?.slots || {}).filter(Boolean);
   const lineupIds = [...onFieldIds, ...(match.lineup?.bench || [])];
   const options = lineupIds.length > 0 ? players.filter((p) => lineupIds.includes(p.id)) : players;
@@ -2026,15 +2113,15 @@ function AddEventModal({ match, players, onClose, onSave }) {
   const gkId = match.lineup?.slots?.gk;
   const gkOptions = gkId ? players.filter((p) => p.id === gkId) : (players.filter((p) => getPositions(p).includes("Goleiro")).length > 0 ? players.filter((p) => getPositions(p).includes("Goleiro")) : options);
 
-  const [type, setType] = useState("gol");
-  const [playerId, setPlayerId] = useState(options[0]?.id || "");
-  const [assistId, setAssistId] = useState("");
-  const [golType, setGolType] = useState("");
-  const [playerOutId, setPlayerOutId] = useState(outOptions[0]?.id || "");
-  const [playerInId, setPlayerInId] = useState("");
-  const [goalkeeperId, setGoalkeeperId] = useState(gkOptions[0]?.id || "");
-  const [note, setNote] = useState("");
-  const [minute, setMinute] = useState("");
+  const [type, setType] = useState(event?.type || "gol");
+  const [playerId, setPlayerId] = useState(event && event.type !== "penaltidefendido" ? (event.playerId || "") : (options[0]?.id || ""));
+  const [assistId, setAssistId] = useState(event?.assistId || "");
+  const [golType, setGolType] = useState(event?.golType || "");
+  const [playerOutId, setPlayerOutId] = useState(event?.playerOutId || outOptions[0]?.id || "");
+  const [playerInId, setPlayerInId] = useState(event?.playerInId || "");
+  const [goalkeeperId, setGoalkeeperId] = useState(event?.type === "penaltidefendido" ? (event.playerId || "") : (gkOptions[0]?.id || ""));
+  const [note, setNote] = useState(event?.note || "");
+  const [minute, setMinute] = useState(event?.minute ?? "");
 
   const inOptions = players.filter((p) => p.id !== playerOutId && !onFieldIds.filter((id) => id !== playerOutId).includes(p.id));
   const needsPlayer = type === "gol" || type === "amarelo" || type === "vermelho" || type === "substituicao";
@@ -2047,7 +2134,7 @@ function AddEventModal({ match, players, onClose, onSave }) {
   function save() {
     if (!isValid) return;
     onSave({
-      id: uid(), type,
+      id: event?.id || uid(), type,
       playerId: type === "gol" || type === "amarelo" || type === "vermelho" ? playerId : type === "penaltidefendido" ? goalkeeperId : null,
       assistId: type === "gol" && assistId ? assistId : null,
       golType: type === "gol" && golType ? golType : null,
@@ -2059,7 +2146,7 @@ function AddEventModal({ match, players, onClose, onSave }) {
   }
 
   return (
-    <ModalShell title="Adicionar evento" onClose={onClose} footer={<button style={S.primaryBtn} onClick={save} disabled={!isValid}>Adicionar</button>}>
+    <ModalShell title={event ? "Editar evento" : "Adicionar evento"} onClose={onClose} footer={<button style={S.primaryBtn} onClick={save} disabled={!isValid}>{event ? "Salvar alterações" : "Adicionar"}</button>}>
       <Field label="Tipo de evento">
         <select style={S.input} value={type} onChange={(e) => setType(e.target.value)}>
           <option value="gol">Gol</option>
@@ -2250,6 +2337,7 @@ const S = {
   scoreboardRow: { display: "flex", alignItems: "center", gap: 14, marginBottom: 10 },
   scoreboardTeam: { fontSize: 14.5, fontWeight: 600, maxWidth: 110, textAlign: "center" },
   scoreboardTeamBtn: { fontSize: 14.5, fontWeight: 600, maxWidth: 110, textAlign: "center", background: "transparent", border: "none", color: "var(--text)", padding: 0, fontFamily: "var(--font-body)" },
+  playerLink: { cursor: "pointer", textDecoration: "underline", textDecorationColor: "var(--line)", textUnderlineOffset: 2 },
   scoreboardDigits: { fontFamily: "var(--font-display)", fontSize: 38, fontWeight: 600, letterSpacing: 1 },
   scoreboardVs: { fontFamily: "var(--font-display)", fontSize: 22, color: "var(--text-dim)" },
   scoreboardMeta: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--text-dim)", marginTop: 2 },
@@ -2257,6 +2345,8 @@ const S = {
   ghostBtn: { marginTop: 14, background: "transparent", color: "var(--turf)", border: "1px solid var(--turf)", padding: "9px 18px", borderRadius: 10, fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center" },
   whatsappBtn: { flex: 1, background: "#25D366", color: "#08150E", border: "none", padding: "11px 14px", borderRadius: 10, fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 },
   ghostBtnSmall: { background: "transparent", border: "1px solid var(--turf)", color: "var(--turf)", borderRadius: 8, padding: "0 12px", fontSize: 13, fontWeight: 600 },
+  segmentBtn: { flex: 1, background: "var(--surface-2)", border: "1px solid var(--line)", color: "var(--text-dim)", borderRadius: 8, padding: "8px 4px", fontSize: 12.5, fontWeight: 600 },
+  segmentBtnActive: { background: "var(--turf-dim)", border: "1px solid var(--turf)", color: "var(--turf)" },
   card: { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px" },
   lineupLabel: { fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
   lineupGrid: { display: "flex", flexWrap: "wrap", gap: 8 },
