@@ -69,6 +69,21 @@ function formatDateLong(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
   return `${d} de ${MESES[m - 1]} de ${y}`;
 }
+function formatBirthDate(dateStr) {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+}
+function calculateAge(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  const monthDiff = today.getMonth() + 1 - m;
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d)) age--;
+  return age;
+}
+const FOOT_LABELS = { destro: "Destro", canhoto: "Canhoto", ambidestro: "Ambidestro" };
 function getPositions(player) {
   if (player?.positions && player.positions.length) return player.positions;
   if (player?.position) return [player.position];
@@ -765,6 +780,9 @@ function MatchCard({ match, getOpponentName, getCompetitionInfo, getVenueName, o
   const comp = COMP_TYPES[compInfo.type] || COMP_TYPES.amistoso;
   const isFinished = match.status === "encerrado";
   const venueName = getVenueName(match);
+  const pens = match.penaltyShootout;
+  const ourPens = pens ? pens.ourKicks.filter((k) => k.scored).length : null;
+  const theirPens = pens ? pens.opponentKicks.filter((k) => k.result === "gol").length : null;
   return (
     <button style={S.matchCard} onClick={onClick}>
       <div style={S.matchCardTop}>
@@ -773,7 +791,12 @@ function MatchCard({ match, getOpponentName, getCompetitionInfo, getVenueName, o
       </div>
       <div style={S.matchCardMain}>
         <div style={S.matchCardTeam}>{getOpponentName(match)}</div>
-        {isFinished ? <div style={S.scoreDigits}>{match.scoreTeam}<span style={S.scoreDash}>–</span>{match.scoreOpponent}</div> : <div style={S.matchCardVs}>vs</div>}
+        {isFinished ? (
+          <div style={{ textAlign: "right" }}>
+            <div style={S.scoreDigits}>{match.scoreTeam}<span style={S.scoreDash}>–</span>{match.scoreOpponent}</div>
+            {pens && <div style={S.penaltyCardNote}>pên. {ourPens}–{theirPens}</div>}
+          </div>
+        ) : <div style={S.matchCardVs}>vs</div>}
       </div>
       <div style={S.matchCardBottom}>
         <MapPin size={12} color="var(--text-dim)" />
@@ -790,6 +813,9 @@ function PlayerMatchCard({ match, playerId, getOpponentName, getCompetitionInfo,
   const isFinished = match.status === "encerrado";
   const venueName = getVenueName(match);
   const badges = getPlayerBadges(playerId, match.events || []);
+  const pens = match.penaltyShootout;
+  const ourPens = pens ? pens.ourKicks.filter((k) => k.scored).length : null;
+  const theirPens = pens ? pens.opponentKicks.filter((k) => k.result === "gol").length : null;
   return (
     <button style={S.matchCard} onClick={onClick}>
       <div style={S.matchCardTop}>
@@ -798,7 +824,12 @@ function PlayerMatchCard({ match, playerId, getOpponentName, getCompetitionInfo,
       </div>
       <div style={S.matchCardMain}>
         <div style={S.matchCardTeam}>{getOpponentName(match)}</div>
-        {isFinished ? <div style={S.scoreDigits}>{match.scoreTeam}<span style={S.scoreDash}>–</span>{match.scoreOpponent}</div> : <div style={S.matchCardVs}>vs</div>}
+        {isFinished ? (
+          <div style={{ textAlign: "right" }}>
+            <div style={S.scoreDigits}>{match.scoreTeam}<span style={S.scoreDash}>–</span>{match.scoreOpponent}</div>
+            {pens && <div style={S.penaltyCardNote}>pên. {ourPens}–{theirPens}</div>}
+          </div>
+        ) : <div style={S.matchCardVs}>vs</div>}
       </div>
       {badges && <div style={{ fontSize: 15, marginTop: 6 }}>{badges}</div>}
       <div style={S.matchCardBottom}>
@@ -849,6 +880,23 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
           )}
         </div>
       </div>
+
+      {(player.fullName || player.birthDate || player.preferredFoot || player.resident != null) && (
+        <div style={{ ...S.card, marginTop: 12 }}>
+          {player.fullName && (
+            <div style={S.infoRow}><span style={S.dimText}>Nome completo</span><span>{player.fullName}</span></div>
+          )}
+          {player.birthDate && (
+            <div style={S.infoRow}><span style={S.dimText}>Nascimento</span><span>{formatBirthDate(player.birthDate)} ({calculateAge(player.birthDate)} anos)</span></div>
+          )}
+          {player.preferredFoot && (
+            <div style={S.infoRow}><span style={S.dimText}>Pé preferido</span><span>{FOOT_LABELS[player.preferredFoot] || player.preferredFoot}</span></div>
+          )}
+          {player.resident != null && (
+            <div style={S.infoRow}><span style={S.dimText}>Residente no município</span><span>{player.resident ? "Sim" : "Não"}</span></div>
+          )}
+        </div>
+      )}
 
       <SectionHeader title="Partidas" />
       {playerMatches.length === 0 ? (
@@ -1250,14 +1298,14 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
           {showInactive && (
             <div style={{ marginTop: 10 }}>
               {inactivePlayers.map((p) => (
-                <div key={p.id} style={S.lineupPickRow}>
+                <div key={p.id} style={{ ...S.lineupPickRow, cursor: "pointer" }} onClick={() => onOpenPlayer(p.id)}>
                   <JerseyBadge number={p.number} size={28} muted />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={S.playerName}>{p.name}</div>
                     <div style={S.playerPos}>{formatPositions(p)}</div>
                   </div>
-                  <button style={S.smallIconBtn} onClick={() => onEdit(p)} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
-                  <button style={S.smallIconBtn} onClick={() => onDelete(p.id)} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
+                  <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
+                  <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
                 </div>
               ))}
             </div>
@@ -1352,23 +1400,30 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
                 <span style={S.standingsCol}>D</span>
                 <span style={S.standingsCol}>SG</span>
               </div>
-              {[...selectedCompetition.standings]
+              {selectedCompetition.standings
+                .map((row) => {
+                  const isUs = row.isUs || (config?.name && row.team.trim().toLowerCase() === config.name.trim().toLowerCase());
+                  if (!isUs) return row;
+                  return {
+                    ...row, isUs: true, team: config.name,
+                    pontos: teamRecord.v * 3 + teamRecord.e, jogos: teamRecord.jogos,
+                    vitorias: teamRecord.v, empates: teamRecord.e, derrotas: teamRecord.d,
+                    golsPro: teamRecord.gp, golsContra: teamRecord.gc,
+                  };
+                })
                 .sort((a, b) => (b.pontos - a.pontos) || ((b.golsPro - b.golsContra) - (a.golsPro - a.golsContra)) || (b.golsPro - a.golsPro))
-                .map((row, i) => {
-                  const isUs = config?.name && row.team.trim().toLowerCase() === config.name.trim().toLowerCase();
-                  return (
-                    <div key={row.id} style={{ ...S.standingsRow, color: isUs ? "var(--turf)" : "var(--text)" }}>
-                      <span style={S.standingsPosCol}>{i + 1}</span>
-                      <span style={{ flex: 1, fontWeight: isUs ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.team}</span>
-                      <span style={S.standingsCol}>{row.pontos}</span>
-                      <span style={S.standingsCol}>{row.jogos}</span>
-                      <span style={S.standingsCol}>{row.vitorias}</span>
-                      <span style={S.standingsCol}>{row.empates}</span>
-                      <span style={S.standingsCol}>{row.derrotas}</span>
-                      <span style={S.standingsCol}>{row.golsPro - row.golsContra}</span>
-                    </div>
-                  );
-                })}
+                .map((row, i) => (
+                  <div key={row.id} style={{ ...S.standingsRow, color: row.isUs ? "var(--turf)" : "var(--text)" }}>
+                    <span style={S.standingsPosCol}>{i + 1}</span>
+                    <span style={{ flex: 1, fontWeight: row.isUs ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.team}{row.isUs ? " 🔗" : ""}</span>
+                    <span style={S.standingsCol}>{row.pontos}</span>
+                    <span style={S.standingsCol}>{row.jogos}</span>
+                    <span style={S.standingsCol}>{row.vitorias}</span>
+                    <span style={S.standingsCol}>{row.empates}</span>
+                    <span style={S.standingsCol}>{row.derrotas}</span>
+                    <span style={S.standingsCol}>{row.golsPro - row.golsContra}</span>
+                  </div>
+                ))}
             </div>
           )}
         </>
@@ -1446,7 +1501,7 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
 
       {showStandings && selectedCompetition && (
         <StandingsModal
-          competition={selectedCompetition}
+          competition={selectedCompetition} config={config} teamRecord={teamRecord}
           onClose={() => setShowStandings(false)}
           onSave={(standings) => { onUpdateStandings(selectedCompetition.id, standings); setShowStandings(false); }}
         />
@@ -1455,13 +1510,17 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
   );
 }
 
-function StandingsModal({ competition, onClose, onSave }) {
+function StandingsModal({ competition, config, teamRecord, onClose, onSave }) {
   const [rows, setRows] = useState(
-    (competition.standings || []).map((r) => ({ ...r }))
+    (competition.standings || []).map((r) => ({ ...r, isUs: r.isUs || (config?.name && r.team.trim().toLowerCase() === config.name.trim().toLowerCase()) }))
   );
+  const hasUsRow = rows.some((r) => r.isUs);
 
   function addRow() {
     setRows([...rows, { id: uid(), team: "", pontos: 0, jogos: 0, vitorias: 0, empates: 0, derrotas: 0, golsPro: 0, golsContra: 0 }]);
+  }
+  function addUsRow() {
+    setRows([{ id: uid(), isUs: true, team: config?.name || "Nosso time" }, ...rows]);
   }
   function updateRow(id, field, value) {
     setRows(rows.map((r) => (r.id === id ? { ...r, [field]: field === "team" ? value : (value === "" ? 0 : Number(value)) } : r)));
@@ -1470,28 +1529,48 @@ function StandingsModal({ competition, onClose, onSave }) {
     setRows(rows.filter((r) => r.id !== id));
   }
   function save() {
-    onSave(rows.filter((r) => r.team.trim()).map((r) => ({ ...r, team: r.team.trim() })));
+    const finalRows = rows.map((r) => r.isUs ? {
+      ...r, team: config?.name || r.team,
+      pontos: teamRecord.v * 3 + teamRecord.e, jogos: teamRecord.jogos,
+      vitorias: teamRecord.v, empates: teamRecord.e, derrotas: teamRecord.d,
+      golsPro: teamRecord.gp, golsContra: teamRecord.gc,
+    } : r);
+    onSave(finalRows.filter((r) => r.team.trim()).map((r) => ({ ...r, team: r.team.trim() })));
   }
 
   return (
     <ModalShell title={`Tabela — ${competition.name}`} onClose={onClose} footer={<button style={S.primaryBtn} onClick={save}>Salvar tabela</button>}>
       <p style={S.helpText}>Preencha manualmente conforme a tabela oficial do campeonato. O saldo de gols é calculado automaticamente.</p>
+      {!hasUsRow && (
+        <button style={{ ...S.ghostBtnSmall, width: "100%", padding: "10px 0", marginBottom: 14 }} onClick={addUsRow}>+ Adicionar nosso time (dados automáticos)</button>
+      )}
       {rows.map((r) => (
-        <div key={r.id} style={S.standingsEditRow}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-            <input style={{ ...S.input, flex: 1 }} value={r.team} onChange={(e) => updateRow(r.id, "team", e.target.value)} placeholder="Nome do time" />
-            <button style={S.smallIconBtn} onClick={() => removeRow(r.id)} aria-label="Remover time"><Trash2 size={14} color="var(--text-dim)" /></button>
+        r.isUs ? (
+          <div key={r.id} style={S.standingsUsCard}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontWeight: 700, color: "var(--turf)" }}>🔗 {config?.name || r.team}</span>
+              <button style={S.smallIconBtn} onClick={() => removeRow(r.id)} aria-label="Remover"><Trash2 size={14} color="var(--text-dim)" /></button>
+            </div>
+            <div style={S.dimText}>PG {teamRecord.v * 3 + teamRecord.e} · J {teamRecord.jogos} · V {teamRecord.v} · E {teamRecord.e} · D {teamRecord.d} · SG {teamRecord.gp - teamRecord.gc}</div>
+            <p style={{ ...S.helpText, marginTop: 6 }}>Calculado automaticamente a partir das partidas registradas dessa competição — não precisa digitar nada aqui.</p>
           </div>
-          <div style={S.standingsEditGrid}>
-            <StandingsNumField label="PG" value={r.pontos} onChange={(v) => updateRow(r.id, "pontos", v)} />
-            <StandingsNumField label="J" value={r.jogos} onChange={(v) => updateRow(r.id, "jogos", v)} />
-            <StandingsNumField label="V" value={r.vitorias} onChange={(v) => updateRow(r.id, "vitorias", v)} />
-            <StandingsNumField label="E" value={r.empates} onChange={(v) => updateRow(r.id, "empates", v)} />
-            <StandingsNumField label="D" value={r.derrotas} onChange={(v) => updateRow(r.id, "derrotas", v)} />
-            <StandingsNumField label="GP" value={r.golsPro} onChange={(v) => updateRow(r.id, "golsPro", v)} />
-            <StandingsNumField label="GC" value={r.golsContra} onChange={(v) => updateRow(r.id, "golsContra", v)} />
+        ) : (
+          <div key={r.id} style={S.standingsEditRow}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+              <input style={{ ...S.input, flex: 1 }} value={r.team} onChange={(e) => updateRow(r.id, "team", e.target.value)} placeholder="Nome do time" />
+              <button style={S.smallIconBtn} onClick={() => removeRow(r.id)} aria-label="Remover time"><Trash2 size={14} color="var(--text-dim)" /></button>
+            </div>
+            <div style={S.standingsEditGrid}>
+              <StandingsNumField label="PG" value={r.pontos} onChange={(v) => updateRow(r.id, "pontos", v)} />
+              <StandingsNumField label="J" value={r.jogos} onChange={(v) => updateRow(r.id, "jogos", v)} />
+              <StandingsNumField label="V" value={r.vitorias} onChange={(v) => updateRow(r.id, "vitorias", v)} />
+              <StandingsNumField label="E" value={r.empates} onChange={(v) => updateRow(r.id, "empates", v)} />
+              <StandingsNumField label="D" value={r.derrotas} onChange={(v) => updateRow(r.id, "derrotas", v)} />
+              <StandingsNumField label="GP" value={r.golsPro} onChange={(v) => updateRow(r.id, "golsPro", v)} />
+              <StandingsNumField label="GC" value={r.golsContra} onChange={(v) => updateRow(r.id, "golsContra", v)} />
+            </div>
           </div>
-        </div>
+        )
       ))}
       <button style={{ ...S.ghostBtnSmall, width: "100%", padding: "10px 0", marginTop: 4 }} onClick={addRow}>+ Adicionar time</button>
     </ModalShell>
@@ -1865,6 +1944,10 @@ function AddMatchModal({ opponents, competitions, venues, onCreateOpponent, onCr
 function AddPlayerModal({ player, onClose, onSave }) {
   const existingPositions = getPositions(player);
   const [name, setName] = useState(player?.name || "");
+  const [fullName, setFullName] = useState(player?.fullName || "");
+  const [birthDate, setBirthDate] = useState(player?.birthDate || "");
+  const [resident, setResident] = useState(player?.resident ?? "");
+  const [preferredFoot, setPreferredFoot] = useState(player?.preferredFoot || "");
   const [number, setNumber] = useState(player?.number ?? "");
   const [mainPosition, setMainPosition] = useState(existingPositions[0] || POSICOES[0]);
   const [secondary, setSecondary] = useState(existingPositions.slice(1));
@@ -1875,12 +1958,19 @@ function AddPlayerModal({ player, onClose, onSave }) {
   }
   function save() {
     if (!name.trim()) return;
-    onSave({ id: player?.id || uid(), name: name.trim(), number: number === "" ? null : Number(number), positions: [mainPosition, ...secondary.filter((p) => p !== mainPosition)], ativo });
+    onSave({
+      id: player?.id || uid(), name: name.trim(), fullName: fullName.trim(),
+      birthDate: birthDate || null, resident: resident === "" ? null : resident === "sim",
+      preferredFoot: preferredFoot || null,
+      number: number === "" ? null : Number(number),
+      positions: [mainPosition, ...secondary.filter((p) => p !== mainPosition)], ativo,
+    });
   }
 
   return (
     <ModalShell title={player ? "Editar jogador" : "Novo jogador"} onClose={onClose} footer={<button style={S.primaryBtn} onClick={save}>Salvar</button>}>
-      <Field label="Nome"><input style={S.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do jogador" /></Field>
+      <Field label="Nome (usado no app)"><input style={S.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Cebola" /></Field>
+      <Field label="Nome completo (opcional)"><input style={S.input} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nome completo pra súmula/documentos" /></Field>
       <div style={{ display: "flex", gap: 10 }}>
         <Field label="Número"><input style={S.input} type="number" min="0" max="99" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="10" /></Field>
         <Field label="Posição principal">
@@ -1894,6 +1984,25 @@ function AddPlayerModal({ player, onClose, onSave }) {
             {p}
           </label>
         ))}
+      </Field>
+      <div style={{ display: "flex", gap: 10 }}>
+        <Field label="Nascimento (opcional)"><input style={S.input} type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} /></Field>
+        <Field label="Pé preferido (opcional)">
+          <select style={S.input} value={preferredFoot} onChange={(e) => setPreferredFoot(e.target.value)}>
+            <option value="">Não informado</option>
+            <option value="destro">Destro</option>
+            <option value="canhoto">Canhoto</option>
+            <option value="ambidestro">Ambidestro</option>
+          </select>
+        </Field>
+      </div>
+      <Field label="Residente no município (opcional)">
+        <select style={S.input} value={resident} onChange={(e) => setResident(e.target.value)}>
+          <option value="">Não informado</option>
+          <option value="sim">Sim</option>
+          <option value="nao">Não</option>
+        </select>
+        <p style={S.helpText}>Só aparece no perfil do jogador — útil pra conferir o limite de não residentes de campeonatos municipais, mas o app não aplica nenhuma regra automaticamente.</p>
       </Field>
       {player && (
         <Field label="Situação no elenco">
@@ -2330,6 +2439,7 @@ const S = {
   matchCardVs: { fontFamily: "var(--font-display)", fontSize: 20, color: "var(--text-dim)" },
   scoreDigits: { fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 600, color: "var(--text)", letterSpacing: 1 },
   scoreDash: { color: "var(--text-dim)", margin: "0 4px" },
+  penaltyCardNote: { fontSize: 10.5, color: "var(--text-dim)", marginTop: 1 },
   matchCardBottom: { display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11.5, color: "var(--text-dim)" },
   pill: { fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, textTransform: "uppercase", letterSpacing: 0.4, display: "inline-block" },
   detailTopBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 4 },
@@ -2370,6 +2480,7 @@ const S = {
   benchGroupLabel: { fontSize: 10.5, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5, margin: "10px 0 6px" },
   staffGrid: { display: "flex", flexDirection: "column", gap: 12 },
   staffRow: { display: "flex", alignItems: "center", gap: 10 },
+  infoRow: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--line)", fontSize: 13 },
   staffAvatar: { width: 34, height: 34, borderRadius: "50%", background: "var(--surface-2)", border: "1.5px solid var(--amber)", color: "var(--amber)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, flexShrink: 0 },
   playerCard: { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 12px" },
   playerName: { fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -2395,6 +2506,7 @@ const S = {
   standingsCol: { width: 30, textAlign: "center", fontSize: 10.5, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase" },
   standingsRow: { display: "flex", alignItems: "center", gap: 4, padding: "8px 0", borderBottom: "1px solid var(--line)", fontSize: 13 },
   standingsEditRow: { paddingBottom: 14, marginBottom: 14, borderBottom: "1px solid var(--line)" },
+  standingsUsCard: { background: "var(--turf-dim)", border: "1px solid var(--turf)", borderRadius: 10, padding: "10px 12px", marginBottom: 14 },
   standingsEditGrid: { display: "flex", gap: 6, flexWrap: "wrap" },
   standingsNumField: { width: 42 },
   standingsNumLabel: { display: "block", fontSize: 9.5, color: "var(--text-dim)", textAlign: "center", marginBottom: 3, textTransform: "uppercase" },
