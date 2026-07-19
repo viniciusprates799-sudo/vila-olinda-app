@@ -261,11 +261,11 @@ export default function App() {
   );
 
   const upcoming = useMemo(
-    () => matches.filter((m) => m.status === "agendado").sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)),
+    () => matches.filter((m) => m.status === "agendado").sort((a, b) => matchTimestamp(a) - matchTimestamp(b)),
     [matches]
   );
   const finished = useMemo(
-    () => matches.filter((m) => m.status === "encerrado").sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)),
+    () => matches.filter((m) => m.status === "encerrado").sort((a, b) => matchTimestamp(b) - matchTimestamp(a)),
     [matches]
   );
 
@@ -722,6 +722,17 @@ function buildShareText(match, config, playerById, getOpponentName, getCompetiti
   return lines.join("\n");
 }
 
+function matchTimestamp(m) {
+  const dateStr = m?.date || "1970-01-01";
+  const timeStr = m?.time || "00:00";
+  const dateParts = dateStr.split("-").map(Number);
+  const timeParts = timeStr.split(":").map(Number);
+  const y = dateParts[0] || 1970, mo = dateParts[1] || 1, d = dateParts[2] || 1;
+  const hh = timeParts[0] || 0, mi = timeParts[1] || 0;
+  const t = new Date(y, mo - 1, d, hh, mi).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 function computeHeadToHead(finishedMatches) {
   let v = 0, e = 0, d = 0, gp = 0, gc = 0;
   finishedMatches.forEach((m) => {
@@ -734,8 +745,8 @@ function computeHeadToHead(finishedMatches) {
 function OpponentHistory({ opponentId, opponents, matches, getOpponentName, getCompetitionInfo, getVenueName, onBack, onOpenMatch }) {
   const opponentName = opponents.find((o) => o.id === opponentId)?.name || "Adversário";
   const vsMatches = matches.filter((m) => m.opponentId === opponentId);
-  const finishedVs = vsMatches.filter((m) => m.status === "encerrado").sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
-  const upcomingVs = vsMatches.filter((m) => m.status === "agendado").sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const finishedVs = vsMatches.filter((m) => m.status === "encerrado").sort((a, b) => matchTimestamp(b) - matchTimestamp(a));
+  const upcomingVs = vsMatches.filter((m) => m.status === "agendado").sort((a, b) => matchTimestamp(a) - matchTimestamp(b));
   const record = computeHeadToHead(finishedVs);
 
   return (
@@ -853,7 +864,7 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
     const benchIds = m.lineup?.bench || [];
     const enteredFromBench = (m.events || []).some((e) => e.type === "substituicao" && e.playerInId === playerId);
     return slotIds.includes(playerId) || (benchIds.includes(playerId) && enteredFromBench);
-  }).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  }).sort((a, b) => matchTimestamp(b) - matchTimestamp(a));
 
   return (
     <div>
@@ -942,15 +953,15 @@ function groupMatchesByCompetition(sortedMatches, getCompetitionInfo) {
 
 function PlayerCompactMatchRow({ match, playerId, getOpponentName, onClick }) {
   const isFinished = match.status === "encerrado";
-  const badges = getPlayerBadges(playerId, match.events || []);
+  const badges = getPlayerBadges(playerId, match.events || [], { excludeSub: true });
   return (
     <div style={S.playerMatchRow} onClick={onClick}>
       <span style={S.playerMatchDate}>{formatDateShort(match.date)}</span>
       <span style={S.playerMatchOpponent}>{getOpponentName(match)}</span>
+      {badges && <span style={{ fontSize: 13 }}>{badges}</span>}
       {isFinished ? (
         <span style={S.playerMatchScore}>{match.scoreTeam}-{match.scoreOpponent}{match.penaltyShootout ? <span style={S.playerMatchPen}> pên.</span> : ""}</span>
       ) : <span style={S.dimText}>vs</span>}
-      {badges && <span style={{ fontSize: 13 }}>{badges}</span>}
       <ChevronRight size={14} color="var(--text-dim)" />
     </div>
   );
@@ -1212,14 +1223,14 @@ function EventRow({ event, playerById, onOpenPlayer, onEdit, onRemove }) {
 }
 
 /* ---------- Pitch ---------- */
-function getPlayerBadges(playerId, events) {
+function getPlayerBadges(playerId, events, options = {}) {
   let badges = "";
   (events || []).forEach((e) => {
     if (e.type === "gol" && e.playerId === playerId) badges += "⚽";
     if (e.type === "gol" && e.assistId === playerId) badges += "🅰️";
     if (e.type === "amarelo" && e.playerId === playerId) badges += "🟨";
     if (e.type === "vermelho" && e.playerId === playerId) badges += "🟥";
-    if (e.type === "substituicao" && (e.playerOutId === playerId || e.playerInId === playerId)) badges += "🔄";
+    if (e.type === "substituicao" && !options.excludeSub && (e.playerOutId === playerId || e.playerInId === playerId)) badges += "🔄";
     if (e.type === "penaltidefendido" && e.playerId === playerId) badges += "🧤";
   });
   return badges;
