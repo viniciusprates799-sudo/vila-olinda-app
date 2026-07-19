@@ -913,21 +913,11 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
       {playerMatches.length === 0 ? (
         <EmptyState text="Esse jogador ainda não participou de nenhuma partida registrada." />
       ) : (
-        groupMatchesByCompetition(playerMatches, getCompetitionInfo).map((group) => {
-          const comp = COMP_TYPES[group.type] || COMP_TYPES.amistoso;
-          return (
-            <div key={group.key} style={{ marginBottom: 16 }}>
-              <div style={S.playerCompGroupHeader}>
-                <span style={{ ...S.pill, background: comp.varBg, color: comp.varText }}>{group.key}</span>
-              </div>
-              <div style={S.card}>
-                {group.matches.map((m) => (
-                  <PlayerCompactMatchRow key={m.id} match={m} playerId={playerId} getOpponentName={getOpponentName} onClick={() => onOpenMatch(m.id)} />
-                ))}
-              </div>
-            </div>
-          );
-        })
+        <div style={S.card}>
+          {playerMatches.map((m) => (
+            <PlayerCompactMatchRow key={m.id} match={m} playerId={playerId} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} onClick={() => onOpenMatch(m.id)} />
+          ))}
+        </div>
       )}
 
       {playerMatches.length > 0 && (
@@ -939,23 +929,12 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
   );
 }
 
-function groupMatchesByCompetition(sortedMatches, getCompetitionInfo) {
-  const groups = {};
-  const order = [];
-  sortedMatches.forEach((m) => {
-    const info = getCompetitionInfo(m);
-    const key = info.name || COMP_TYPES[info.type]?.label || "Outros";
-    if (!groups[key]) { groups[key] = { key, type: info.type, matches: [] }; order.push(key); }
-    groups[key].matches.push(m);
-  });
-  return order.map((k) => groups[k]);
-}
-
-function PlayerCompactMatchRow({ match, playerId, getOpponentName, onClick }) {
+function PlayerCompactMatchRow({ match, playerId, getOpponentName, getCompetitionInfo, onClick }) {
   const isFinished = match.status === "encerrado";
   const badges = getPlayerBadges(playerId, match.events || [], { excludeSub: true });
+  const comp = COMP_TYPES[getCompetitionInfo(match).type] || COMP_TYPES.amistoso;
   return (
-    <div style={S.playerMatchRow} onClick={onClick}>
+    <div style={{ ...S.playerMatchRow, borderLeft: `3px solid ${comp.varText}`, paddingLeft: 8 }} onClick={onClick}>
       <span style={S.playerMatchDate}>{formatDateShort(match.date)}</span>
       <span style={S.playerMatchOpponent}>{getOpponentName(match)}</span>
       {badges && <span style={{ fontSize: 13 }}>{badges}</span>}
