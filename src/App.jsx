@@ -901,15 +901,57 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
       <SectionHeader title="Partidas" />
       {playerMatches.length === 0 ? (
         <EmptyState text="Esse jogador ainda não participou de nenhuma partida registrada." />
-      ) : playerMatches.map((m) => (
-        <PlayerMatchCard key={m.id} match={m} playerId={playerId} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName} onClick={() => onOpenMatch(m.id)} />
-      ))}
+      ) : (
+        groupMatchesByCompetition(playerMatches, getCompetitionInfo).map((group) => {
+          const comp = COMP_TYPES[group.type] || COMP_TYPES.amistoso;
+          return (
+            <div key={group.key} style={{ marginBottom: 16 }}>
+              <div style={S.playerCompGroupHeader}>
+                <span style={{ ...S.pill, background: comp.varBg, color: comp.varText }}>{group.key}</span>
+              </div>
+              <div style={S.card}>
+                {group.matches.map((m) => (
+                  <PlayerCompactMatchRow key={m.id} match={m} playerId={playerId} getOpponentName={getOpponentName} onClick={() => onOpenMatch(m.id)} />
+                ))}
+              </div>
+            </div>
+          );
+        })
+      )}
 
       {playerMatches.length > 0 && (
         <div style={S.legendBox}>
           <span>⚽ gol</span><span>🅰️ assistência</span><span>🟨 amarelo</span><span>🟥 vermelho</span><span>🔄 substituição</span><span>🧤 defesa de pênalti</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function groupMatchesByCompetition(sortedMatches, getCompetitionInfo) {
+  const groups = {};
+  const order = [];
+  sortedMatches.forEach((m) => {
+    const info = getCompetitionInfo(m);
+    const key = info.name || COMP_TYPES[info.type]?.label || "Outros";
+    if (!groups[key]) { groups[key] = { key, type: info.type, matches: [] }; order.push(key); }
+    groups[key].matches.push(m);
+  });
+  return order.map((k) => groups[k]);
+}
+
+function PlayerCompactMatchRow({ match, playerId, getOpponentName, onClick }) {
+  const isFinished = match.status === "encerrado";
+  const badges = getPlayerBadges(playerId, match.events || []);
+  return (
+    <div style={S.playerMatchRow} onClick={onClick}>
+      <span style={S.playerMatchDate}>{formatDateShort(match.date)}</span>
+      <span style={S.playerMatchOpponent}>{getOpponentName(match)}</span>
+      {isFinished ? (
+        <span style={S.playerMatchScore}>{match.scoreTeam}-{match.scoreOpponent}{match.penaltyShootout ? <span style={S.playerMatchPen}> pên.</span> : ""}</span>
+      ) : <span style={S.dimText}>vs</span>}
+      {badges && <span style={{ fontSize: 13 }}>{badges}</span>}
+      <ChevronRight size={14} color="var(--text-dim)" />
     </div>
   );
 }
@@ -2440,6 +2482,12 @@ const S = {
   scoreDigits: { fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 600, color: "var(--text)", letterSpacing: 1 },
   scoreDash: { color: "var(--text-dim)", margin: "0 4px" },
   penaltyCardNote: { fontSize: 10.5, color: "var(--text-dim)", marginTop: 1 },
+  playerCompGroupHeader: { marginBottom: 8 },
+  playerMatchRow: { display: "flex", alignItems: "center", gap: 8, padding: "9px 0", borderBottom: "1px solid var(--line)", cursor: "pointer" },
+  playerMatchDate: { fontSize: 11, color: "var(--text-dim)", width: 44, flexShrink: 0 },
+  playerMatchOpponent: { flex: 1, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  playerMatchScore: { fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, whiteSpace: "nowrap" },
+  playerMatchPen: { fontSize: 9, color: "var(--text-dim)", fontFamily: "var(--font-body)" },
   matchCardBottom: { display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11.5, color: "var(--text-dim)" },
   pill: { fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, textTransform: "uppercase", letterSpacing: 0.4, display: "inline-block" },
   detailTopBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 4 },
