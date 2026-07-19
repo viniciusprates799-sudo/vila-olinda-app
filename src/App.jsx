@@ -16,43 +16,43 @@ const POSITION_GROUPS = [
   { label: "Ataque", positions: ["Atacante"] },
 ];
 const COMP_TYPES = {
-  oficial:   { label: "Oficial",   varBg: "var(--turf-dim)",     varText: "var(--turf)" },
-  amistoso:  { label: "Amistoso",  varBg: "var(--amber-dim)",    varText: "var(--amber)" },
-  festival:  { label: "Festival",  varBg: "var(--festival-dim)", varText: "var(--festival)" },
+  oficial:   { label: "Oficial",   varBg: "var(--turf-dim)",      varText: "var(--turf)" },
+  amistoso:  { label: "Amistoso",  varBg: "var(--amistoso-dim)",  varText: "var(--amistoso)" },
+  festival:  { label: "Festival",  varBg: "var(--festival-dim)",  varText: "var(--festival)" },
 };
 const ROLE_TO_POSITION = { GOL: "Goleiro", ZAG: "Zagueiro", LAT: "Lateral", VOL: "Volante", MEI: "Meia", ATA: "Atacante" };
 const GOAL_TYPES = ["Gol de falta","Gol de pênalti","Gol olímpico","Assistência","Gol de rebote","Gol de voleio","Gol de bicicleta","Gol de fora da área","Gol de dentro da área"];
 
 const FORMATIONS = {
   "4-4-2": [
-    { id: "gk", role: "GOL", x: 50, y: 88 },
-    { id: "ld", role: "LAT", x: 80, y: 74 }, { id: "zc1", role: "ZAG", x: 60, y: 78 },
-    { id: "zc2", role: "ZAG", x: 40, y: 78 }, { id: "le", role: "LAT", x: 20, y: 74 },
-    { id: "md", role: "MEI", x: 78, y: 50 }, { id: "mc1", role: "VOL", x: 58, y: 54 },
-    { id: "mc2", role: "VOL", x: 42, y: 54 }, { id: "me", role: "MEI", x: 22, y: 50 },
-    { id: "at1", role: "ATA", x: 38, y: 22 }, { id: "at2", role: "ATA", x: 62, y: 22 },
+    { id: "gk", role: "GOL", x: 50, y: 90 },
+    { id: "ld", role: "LAT", x: 80, y: 66 }, { id: "zc1", role: "ZAG", x: 60, y: 69 },
+    { id: "zc2", role: "ZAG", x: 40, y: 69 }, { id: "le", role: "LAT", x: 20, y: 66 },
+    { id: "md", role: "MEI", x: 78, y: 40 }, { id: "mc1", role: "VOL", x: 58, y: 46 },
+    { id: "mc2", role: "VOL", x: 42, y: 46 }, { id: "me", role: "MEI", x: 22, y: 40 },
+    { id: "at1", role: "ATA", x: 38, y: 15 }, { id: "at2", role: "ATA", x: 62, y: 15 },
   ],
   "4-3-3": [
-    { id: "gk", role: "GOL", x: 50, y: 88 },
-    { id: "ld", role: "LAT", x: 80, y: 74 }, { id: "zc1", role: "ZAG", x: 60, y: 78 },
-    { id: "zc2", role: "ZAG", x: 40, y: 78 }, { id: "le", role: "LAT", x: 20, y: 74 },
-    { id: "mc1", role: "VOL", x: 50, y: 58 }, { id: "mc2", role: "MEI", x: 30, y: 52 }, { id: "mc3", role: "MEI", x: 70, y: 52 },
-    { id: "fe", role: "ATA", x: 20, y: 24 }, { id: "fc", role: "ATA", x: 50, y: 18 }, { id: "fd", role: "ATA", x: 80, y: 24 },
+    { id: "gk", role: "GOL", x: 50, y: 90 },
+    { id: "ld", role: "LAT", x: 80, y: 66 }, { id: "zc1", role: "ZAG", x: 60, y: 69 },
+    { id: "zc2", role: "ZAG", x: 40, y: 69 }, { id: "le", role: "LAT", x: 20, y: 66 },
+    { id: "mc1", role: "VOL", x: 50, y: 46 }, { id: "mc2", role: "MEI", x: 30, y: 40 }, { id: "mc3", role: "MEI", x: 70, y: 40 },
+    { id: "fe", role: "ATA", x: 20, y: 16 }, { id: "fc", role: "ATA", x: 50, y: 12 }, { id: "fd", role: "ATA", x: 80, y: 16 },
   ],
   "4-2-3-1": [
-    { id: "gk", role: "GOL", x: 50, y: 88 },
-    { id: "ld", role: "LAT", x: 80, y: 74 }, { id: "zc1", role: "ZAG", x: 60, y: 78 },
-    { id: "zc2", role: "ZAG", x: 40, y: 78 }, { id: "le", role: "LAT", x: 20, y: 74 },
-    { id: "v1", role: "VOL", x: 38, y: 58 }, { id: "v2", role: "VOL", x: 62, y: 58 },
-    { id: "me", role: "MEI", x: 20, y: 36 }, { id: "mc", role: "MEI", x: 50, y: 34 }, { id: "md", role: "MEI", x: 80, y: 36 },
-    { id: "a1", role: "ATA", x: 50, y: 16 },
+    { id: "gk", role: "GOL", x: 50, y: 90 },
+    { id: "ld", role: "LAT", x: 80, y: 66 }, { id: "zc1", role: "ZAG", x: 60, y: 69 },
+    { id: "zc2", role: "ZAG", x: 40, y: 69 }, { id: "le", role: "LAT", x: 20, y: 66 },
+    { id: "v1", role: "VOL", x: 38, y: 46 }, { id: "v2", role: "VOL", x: 62, y: 46 },
+    { id: "me", role: "MEI", x: 20, y: 28 }, { id: "mc", role: "MEI", x: 50, y: 24 }, { id: "md", role: "MEI", x: 80, y: 28 },
+    { id: "a1", role: "ATA", x: 50, y: 10 },
   ],
   "3-5-2": [
-    { id: "gk", role: "GOL", x: 50, y: 88 },
-    { id: "z1", role: "ZAG", x: 30, y: 78 }, { id: "z2", role: "ZAG", x: 50, y: 82 }, { id: "z3", role: "ZAG", x: 70, y: 78 },
-    { id: "le", role: "LAT", x: 14, y: 52 }, { id: "mc1", role: "VOL", x: 34, y: 56 }, { id: "mc3", role: "MEI", x: 50, y: 48 },
-    { id: "mc2", role: "VOL", x: 66, y: 56 }, { id: "ld", role: "LAT", x: 86, y: 52 },
-    { id: "a1", role: "ATA", x: 38, y: 22 }, { id: "a2", role: "ATA", x: 62, y: 22 },
+    { id: "gk", role: "GOL", x: 50, y: 90 },
+    { id: "z1", role: "ZAG", x: 30, y: 69 }, { id: "z2", role: "ZAG", x: 50, y: 73 }, { id: "z3", role: "ZAG", x: 70, y: 69 },
+    { id: "le", role: "LAT", x: 14, y: 44 }, { id: "mc1", role: "VOL", x: 34, y: 48 }, { id: "mc3", role: "MEI", x: 50, y: 40 },
+    { id: "mc2", role: "VOL", x: 66, y: 48 }, { id: "ld", role: "LAT", x: 86, y: 44 },
+    { id: "a1", role: "ATA", x: 38, y: 15 }, { id: "a2", role: "ATA", x: 62, y: 15 },
   ],
 };
 
@@ -61,7 +61,8 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 function formatDateShort(dateStr) {
   if (!dateStr) return "";
   const [y, m, d] = dateStr.split("-").map(Number);
-  return `${d} ${MESES[m - 1]}`;
+  const currentYear = new Date().getFullYear();
+  return y !== currentYear ? `${d} ${MESES[m - 1]} ${y}` : `${d} ${MESES[m - 1]}`;
 }
 function formatDateLong(dateStr) {
   if (!dateStr) return "";
@@ -155,6 +156,40 @@ export default function App() {
       if (st) { try { setStaffMembers(JSON.parse(st)); } catch {} }
       setLoading(false);
     })();
+  }, []);
+
+  const anyOverlayOpen = !!(
+    selectedMatchId || viewingOpponentId || viewingPlayerId ||
+    showAddMatch || showAddPlayer || showConfig || showScoreForm || showLineup ||
+    showAddEvent || showAddMedia || showEditMatch || showMatchStaff || showPenalties || confirmDialog
+  );
+  const prevOverlayOpenRef = useRef(false);
+  useEffect(() => {
+    if (anyOverlayOpen && !prevOverlayOpenRef.current) {
+      window.history.pushState({ vilaOlindaOverlay: true }, "");
+    }
+    prevOverlayOpenRef.current = anyOverlayOpen;
+  });
+
+  useEffect(() => {
+    function handlePopState() {
+      setSelectedMatchId(null);
+      setViewingOpponentId(null);
+      setViewingPlayerId(null);
+      setShowAddMatch(false);
+      setShowAddPlayer(null);
+      setShowConfig(false);
+      setShowScoreForm(false);
+      setShowLineup(false);
+      setShowAddEvent(false);
+      setShowAddMedia(false);
+      setShowEditMatch(false);
+      setShowMatchStaff(false);
+      setShowPenalties(false);
+      setConfirmDialog(null);
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
   function persistConfig(next) { setConfig(next); storageSet("team-config", JSON.stringify(next), true); }
@@ -788,12 +823,11 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
         <JerseyBadge number={player.number} size={54} />
         <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 600, marginTop: 10, textAlign: "center" }}>{player.name}</div>
         <div style={S.dimText}>{formatPositions(player)}{player.ativo === false ? " · fora do elenco atual" : ""}</div>
-        <div style={{ ...S.recordGrid, marginTop: 16, gridTemplateColumns: "repeat(3, 1fr)" }}>
+        <div style={{ ...S.recordGrid, marginTop: 16, gridTemplateColumns: isGoalkeeper ? "repeat(2, 1fr)" : "repeat(3, 1fr)" }}>
           {isGoalkeeper ? (
             <>
               <RecordCell label="Jogos" value={stats.jogos} />
-              <RecordCell label="Gols sofridos" value={stats.golsSofridos} />
-              <RecordCell label="Jogo zero" value={stats.jogosSemSofrerGol} />
+              <RecordCell label="Jogo zero" value={stats.jogosSemSofrerGol} accent="var(--turf)" />
             </>
           ) : (
             <>
@@ -900,27 +934,31 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
                 </div>
                 <div style={S.dimText}>Pênaltis</div>
               </div>
-              <div style={S.lineupLabel}>Nosso time</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-                {match.penaltyShootout.ourKicks.map((k) => {
-                  const p = playerById(k.playerId);
-                  return (
-                    <div key={k.id} style={S.lineupChip}>
-                      <span style={{ fontSize: 14 }}>{k.scored ? "✅" : "❌"}</span>
-                      <span>{p ? p.name : "Jogador removido"}</span>
+              <div style={S.penaltyHeaderRow}>
+                <span style={{ flex: 1, textAlign: "right" }}>{config.name}</span>
+                <span style={S.dimText}>#</span>
+                <span style={{ flex: 1 }}>Adversário</span>
+              </div>
+              {Array.from({ length: Math.max(match.penaltyShootout.ourKicks.length, match.penaltyShootout.opponentKicks.length) }).map((_, i) => {
+                const ourKick = match.penaltyShootout.ourKicks[i];
+                const theirKick = match.penaltyShootout.opponentKicks[i];
+                const p = ourKick ? playerById(ourKick.playerId) : null;
+                return (
+                  <div key={i} style={S.penaltyPairRow}>
+                    <div style={S.penaltySide}>
+                      {ourKick ? (
+                        <><span>{p ? p.name : "Jogador removido"}</span><span style={{ fontSize: 15 }}>{ourKick.scored ? "✅" : "❌"}</span></>
+                      ) : <span style={S.dimText}>—</span>}
                     </div>
-                  );
-                })}
-              </div>
-              <div style={S.lineupLabel}>Adversário</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {match.penaltyShootout.opponentKicks.map((k) => (
-                  <div key={k.id} style={S.lineupChip}>
-                    <span style={{ fontSize: 14 }}>{k.result === "gol" ? "✅" : k.result === "defendida" ? "🧤" : "❌"}</span>
-                    <span>{k.result === "gol" ? "Gol" : k.result === "defendida" ? "Defendida" : "Perdida"}</span>
+                    <span style={S.penaltyRoundNumber}>{i + 1}</span>
+                    <div style={{ ...S.penaltySide, justifyContent: "flex-start" }}>
+                      {theirKick ? (
+                        <><span style={{ fontSize: 15 }}>{theirKick.result === "gol" ? "✅" : theirKick.result === "defendida" ? "🧤" : "❌"}</span><span>{theirKick.result === "gol" ? "Gol" : theirKick.result === "defendida" ? "Defendida" : "Perdida"}</span></>
+                      ) : <span style={S.dimText}>—</span>}
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           )}
         </>
@@ -1068,7 +1106,7 @@ function getPlayerBadges(playerId, events) {
 function Pitch({ formation, slots, playersById, activeSlotId, onSlotClick, events, captainId }) {
   const layout = FORMATIONS[formation] || FORMATIONS["4-4-2"];
   return (
-    <svg viewBox="0 0 300 466" style={{ width: "100%", height: "auto", background: "var(--pitch)", borderRadius: 12 }}>
+    <svg viewBox="0 0 300 474" style={{ width: "100%", height: "auto", background: "var(--pitch)", borderRadius: 12 }}>
       <rect x="6" y="6" width="288" height="448" fill="none" stroke="var(--pitch-line)" strokeWidth="2" rx="6" />
       <line x1="6" y1="230" x2="294" y2="230" stroke="var(--pitch-line)" strokeWidth="2" />
       <circle cx="150" cy="230" r="38" fill="none" stroke="var(--pitch-line)" strokeWidth="2" />
@@ -1144,38 +1182,26 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
         groups.map((g, i) => (
           <div key={g.label} style={i > 0 ? S.positionGroup : undefined}>
             <div style={S.positionGroupLabel}>{g.label}</div>
-            <div style={S.playerGrid}>
+            <div style={S.card}>
               {g.players.map((p) => {
                 const isGoalkeeper = getPositions(p)[0] === "Goleiro";
                 const stats = isGoalkeeper ? getGoalkeeperStats(p.id) : getPlayerStats(p.id);
                 return (
-                  <div key={p.id} style={{ ...S.playerCard, cursor: "pointer" }} onClick={() => onOpenPlayer(p.id)}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <JerseyBadge number={p.number} size={38} />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={S.playerName}>{p.name}</div>
-                        <div style={S.playerPos}>{formatPositions(p)}</div>
-                      </div>
-                      <div style={{ display: "flex", gap: 2 }}>
-                        <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
-                        <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
-                      </div>
+                  <div key={p.id} style={S.playerListRow} onClick={() => onOpenPlayer(p.id)}>
+                    <JerseyBadge number={p.number} size={32} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={S.eventMain}>{p.name}</div>
+                      <div style={S.eventSub}>{formatPositions(p)}</div>
                     </div>
-                    <div style={S.playerStatsRow}>
+                    <div style={S.playerListStats}>
                       {isGoalkeeper ? (
-                        <>
-                          <StatMini label="J" value={stats.jogos} />
-                          <StatMini label="GS" value={stats.golsSofridos} />
-                          <StatMini label="SG" value={stats.jogosSemSofrerGol} />
-                        </>
+                        <span>{stats.jogos}J · {stats.jogosSemSofrerGol}SG</span>
                       ) : (
-                        <>
-                          <StatMini label="J" value={stats.jogos} />
-                          <StatMini label="G" value={stats.goals} />
-                          <StatMini label="A" value={stats.assists} />
-                        </>
+                        <span>{stats.jogos}J · {stats.goals}G · {stats.assists}A</span>
                       )}
                     </div>
+                    <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
+                    <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
                   </div>
                 );
               })}
@@ -1212,7 +1238,6 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
           <span><b>J</b> jogos</span>
           <span><b>G</b> gols</span>
           <span><b>A</b> assistências</span>
-          <span><b>GS</b> gols sofridos</span>
           <span><b>SG</b> jogos sem sofrer gol</span>
         </div>
       )}
@@ -1374,7 +1399,6 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
           <div style={S.goalkeeperHeaderRow}>
             <span style={{ flex: 1 }} />
             <span style={S.goalkeeperHeaderLabel}>Jogos</span>
-            <span style={S.goalkeeperHeaderLabel}>Sofridos</span>
             <span style={S.goalkeeperHeaderLabel}>Jogo zero</span>
           </div>
           {goleiros.map((x) => (
@@ -1382,7 +1406,6 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
               <JerseyBadge number={x.p.number} size={30} />
               <div style={{ flex: 1, minWidth: 0 }}><div style={S.eventMain}>{x.p.name}</div></div>
               <span style={S.goalkeeperValue}>{x.stats.jogos}</span>
-              <span style={S.goalkeeperValue}>{x.stats.golsSofridos}</span>
               <span style={S.goalkeeperValue}>{x.stats.jogosSemSofrerGol}</span>
             </div>
           ))}
@@ -2172,6 +2195,7 @@ function StyleBlock() {
         --bg: #0A0A0A; --surface: #161616; --surface-2: #202020; --line: #2C2C2C;
         --turf: #D4AF37; --turf-dim: rgba(212,175,55,0.18);
         --amber: #F2B134; --amber-dim: rgba(242,177,52,0.16);
+        --amistoso: #A87FE0; --amistoso-dim: rgba(168,127,224,0.18);
         --festival: #59A8C9; --festival-dim: rgba(89,168,201,0.16);
         --danger: #E3584A; --text: #F5F5F3; --text-dim: #9A9A9A;
         --pitch: #173D22; --pitch-line: rgba(241,243,239,0.32);
@@ -2261,6 +2285,8 @@ const S = {
   playerName: { fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   playerPos: { fontSize: 10.5, color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   playerStatsRow: { display: "flex", gap: 8, marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 8 },
+  playerListRow: { display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--line)", cursor: "pointer" },
+  playerListStats: { fontSize: 11.5, color: "var(--text-dim)", whiteSpace: "nowrap", marginRight: 2 },
   legendBox: { display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 20, paddingTop: 14, borderTop: "1px dashed var(--line)", fontSize: 11, color: "var(--text-dim)" },
   statMini: { flex: 1, textAlign: "center" },
   statMiniValue: { fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600 },
@@ -2308,5 +2334,9 @@ const S = {
   assignRow: { width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 4px", background: "transparent", border: "none", borderBottom: "1px solid var(--line)", color: "var(--text)" },
   penaltyRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 },
   penaltyToggle: { width: 40, height: 40, borderRadius: 8, border: "1px solid var(--line)", fontSize: 16, flexShrink: 0 },
+  penaltyHeaderRow: { display: "flex", alignItems: "center", gap: 10, paddingBottom: 8, marginBottom: 6, borderBottom: "1px solid var(--line)", fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.4 },
+  penaltyPairRow: { display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--line)", fontSize: 13 },
+  penaltySide: { flex: 1, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", textAlign: "right", minWidth: 0 },
+  penaltyRoundNumber: { fontFamily: "var(--font-display)", fontSize: 15, color: "var(--text-dim)", width: 16, textAlign: "center", flexShrink: 0 },
   suggestedTag: { fontSize: 10, color: "var(--turf)", border: "1px solid var(--turf)", borderRadius: 999, padding: "1px 6px", marginLeft: "auto" },
 };
