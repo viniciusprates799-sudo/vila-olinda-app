@@ -922,6 +922,7 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
 
       {playerMatches.length > 0 && (
         <div style={S.legendBox}>
+          <span><b>O</b> oficial</span><span><b>A</b> amistoso</span><span><b>F</b> festival</span>
           <span>⚽ gol</span><span>🅰️ assistência</span><span>🟨 amarelo</span><span>🟥 vermelho</span><span>🔄 substituição</span><span>🧤 defesa de pênalti</span>
         </div>
       )}
@@ -934,7 +935,8 @@ function PlayerCompactMatchRow({ match, playerId, getOpponentName, getCompetitio
   const badges = getPlayerBadges(playerId, match.events || [], { excludeSub: true });
   const comp = COMP_TYPES[getCompetitionInfo(match).type] || COMP_TYPES.amistoso;
   return (
-    <div style={{ ...S.playerMatchRow, borderLeft: `3px solid ${comp.varText}`, paddingLeft: 8 }} onClick={onClick}>
+    <div style={S.playerMatchRow} onClick={onClick}>
+      <span style={{ ...S.compBadge, background: comp.varBg, color: comp.varText }}>{comp.label[0]}</span>
       <span style={S.playerMatchDate}>{formatDateShort(match.date)}</span>
       <span style={S.playerMatchOpponent}>{getOpponentName(match)}</span>
       {badges && <span style={{ fontSize: 13 }}>{badges}</span>}
@@ -2475,6 +2477,7 @@ const S = {
   playerCompGroupHeader: { marginBottom: 8 },
   playerMatchRow: { display: "flex", alignItems: "center", gap: 8, padding: "9px 0", borderBottom: "1px solid var(--line)", cursor: "pointer" },
   playerMatchDate: { fontSize: 11, color: "var(--text-dim)", width: 44, flexShrink: 0 },
+  compBadge: { width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 },
   playerMatchOpponent: { flex: 1, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   playerMatchScore: { fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, whiteSpace: "nowrap" },
   playerMatchPen: { fontSize: 9, color: "var(--text-dim)", fontFamily: "var(--font-body)" },
