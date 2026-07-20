@@ -261,7 +261,11 @@ export default function App() {
   );
 
   const upcoming = useMemo(
-    () => matches.filter((m) => m.status === "agendado").sort((a, b) => matchTimestamp(a) - matchTimestamp(b)),
+    () => matches.filter((m) => m.status === "agendado" && matchTimestamp(m) >= Date.now()).sort((a, b) => matchTimestamp(a) - matchTimestamp(b)),
+    [matches]
+  );
+  const pendingResult = useMemo(
+    () => matches.filter((m) => m.status === "agendado" && matchTimestamp(m) < Date.now()).sort((a, b) => matchTimestamp(b) - matchTimestamp(a)),
     [matches]
   );
   const finished = useMemo(
@@ -345,7 +349,7 @@ export default function App() {
             {tab === "jogos" && !selectedMatch && !viewingOpponentId && (
               <JogosTab
                 key={`${jogosJumpFilter.type}-${jogosJumpFilter.competitionId}`}
-                upcoming={upcoming} finished={finished} opponents={opponents} competitions={competitions}
+                upcoming={upcoming} pendingResult={pendingResult} finished={finished} opponents={opponents} competitions={competitions}
                 getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
                 onOpenMatch={(id) => setSelectedMatchId(id)} onAddMatch={() => setShowAddMatch(true)}
                 initialFilterType={jogosJumpFilter.type} initialFilterCompetitionId={jogosJumpFilter.competitionId}
@@ -531,7 +535,7 @@ function Header({ config, onOpenConfig }) {
 }
 
 /* ---------- Jogos Tab ---------- */
-function JogosTab({ upcoming, finished, opponents, competitions, getOpponentName, getCompetitionInfo, getVenueName, onOpenMatch, onAddMatch, initialFilterType, initialFilterCompetitionId }) {
+function JogosTab({ upcoming, pendingResult, finished, opponents, competitions, getOpponentName, getCompetitionInfo, getVenueName, onOpenMatch, onAddMatch, initialFilterType, initialFilterCompetitionId }) {
   const [filterType, setFilterType] = useState(initialFilterType || "todos");
   const [filterOpponentId, setFilterOpponentId] = useState("todos");
   const [filterCompetitionId, setFilterCompetitionId] = useState(initialFilterCompetitionId || "todas");
@@ -543,6 +547,7 @@ function JogosTab({ upcoming, finished, opponents, competitions, getOpponentName
     return true;
   };
   const filteredUpcoming = upcoming.filter(matchesFilter);
+  const filteredPending = pendingResult.filter(matchesFilter);
   const filteredFinished = finished.filter(matchesFilter);
 
   const h2h = useMemo(() => {
@@ -600,6 +605,22 @@ function JogosTab({ upcoming, finished, opponents, competitions, getOpponentName
       ) : filteredUpcoming.map((m) => (
         <MatchCard key={m.id} match={m} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName} onClick={() => onOpenMatch(m.id)} />
       ))}
+
+      {pendingResult.length > 0 && (
+        <>
+          <SectionHeader title="Aguardando resultado" />
+          {filteredPending.length === 0 ? (
+            <EmptyState text="Nenhum jogo pendente com esse filtro." />
+          ) : (
+            <>
+              <p style={S.helpText}>Já aconteceram, mas ainda não têm placar lançado.</p>
+              {filteredPending.map((m) => (
+                <MatchCard key={m.id} match={m} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName} onClick={() => onOpenMatch(m.id)} />
+              ))}
+            </>
+          )}
+        </>
+      )}
 
       <SectionHeader title="Resultados" />
       {filteredFinished.length === 0 ? (
@@ -660,46 +681,51 @@ function buildShareText(match, config, playerById, getOpponentName, getCompetiti
     if (venueName) lines.push(`📍 ${venueName}`);
 
     const events = match.events || [];
-    const goals = events.filter((e) => e.type === "gol").sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
-    const golsContra = events.filter((e) => e.type === "golcontra").sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
-    if (goals.length || golsContra.length) {
+    const timeLabel = (e) => e.minute != null ? `${e.minute}'` : (e.period === "1" ? "1ºT" : e.period === "2" ? "2ºT" : "");
+    const goalEvents = events.filter((e) => e.type === "gol" || e.type === "golcontra" || e.type === "gol_adversario").sort((a, b) => eventSortValue(a) - eventSortValue(b));
+    if (goalEvents.length) {
       lines.push("");
       lines.push("🥅 *Gols:*");
-      goals.forEach((e) => {
-        const scorer = playerById(e.playerId);
-        const assist = e.assistId ? playerById(e.assistId) : null;
-        let line = `⚽ ${e.minute}' ${scorer ? scorer.name : "Jogador removido"}`;
-        if (e.golType) line += ` (${e.golType})`;
-        if (assist) line += ` — assist. ${assist.name}`;
-        lines.push(line);
+      goalEvents.forEach((e) => {
+        if (e.type === "gol") {
+          const scorer = playerById(e.playerId);
+          const assist = e.assistId ? playerById(e.assistId) : null;
+          let line = `⚽ ${timeLabel(e)} ${scorer ? scorer.name : "Jogador removido"}`;
+          if (e.golType) line += ` (${e.golType})`;
+          if (assist) line += ` — assist. ${assist.name}`;
+          lines.push(line);
+        } else if (e.type === "golcontra") {
+          lines.push(`⚽ ${timeLabel(e)} Gol contra do adversário${e.note ? ` (${e.note})` : ""}`);
+        } else if (e.type === "gol_adversario") {
+          lines.push(`⚽ ${timeLabel(e)} Gol do adversário${e.golType ? ` (${e.golType})` : ""}${e.note ? ` — ${e.note}` : ""}`);
+        }
       });
-      golsContra.forEach((e) => lines.push(`⚽ ${e.minute}' Gol contra do adversário${e.note ? ` (${e.note})` : ""}`));
     }
 
-    const amarelos = events.filter((e) => e.type === "amarelo").sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
-    const vermelhos = events.filter((e) => e.type === "vermelho").sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+    const amarelos = events.filter((e) => e.type === "amarelo").sort((a, b) => eventSortValue(a) - eventSortValue(b));
+    const vermelhos = events.filter((e) => e.type === "vermelho").sort((a, b) => eventSortValue(a) - eventSortValue(b));
     if (amarelos.length || vermelhos.length) {
       lines.push("");
       lines.push("🟨🟥 *Cartões:*");
-      amarelos.forEach((e) => { const p = playerById(e.playerId); lines.push(`🟨 ${e.minute}' ${p ? p.name : "Jogador removido"}`); });
-      vermelhos.forEach((e) => { const p = playerById(e.playerId); lines.push(`🟥 ${e.minute}' ${p ? p.name : "Jogador removido"}`); });
+      amarelos.forEach((e) => { const p = playerById(e.playerId); lines.push(`🟨 ${timeLabel(e)} ${p ? p.name : "Jogador removido"}`); });
+      vermelhos.forEach((e) => { const p = playerById(e.playerId); lines.push(`🟥 ${timeLabel(e)} ${p ? p.name : "Jogador removido"}`); });
     }
 
-    const subs = events.filter((e) => e.type === "substituicao").sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+    const subs = events.filter((e) => e.type === "substituicao").sort((a, b) => eventSortValue(a) - eventSortValue(b));
     if (subs.length) {
       lines.push("");
       lines.push("🔄 *Substituições:*");
       subs.forEach((e) => {
         const pin = playerById(e.playerInId);
         const pout = playerById(e.playerOutId);
-        lines.push(`🔄 ${e.minute}' Saiu ${pout ? pout.name : "?"} ➡️ Entrou ${pin ? pin.name : "?"}`);
+        lines.push(`🔄 ${timeLabel(e)} Saiu ${pout ? pout.name : "?"} ➡️ Entrou ${pin ? pin.name : "?"}`);
       });
     }
 
-    const penaltis = events.filter((e) => e.type === "penaltidefendido").sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+    const penaltis = events.filter((e) => e.type === "penaltidefendido").sort((a, b) => eventSortValue(a) - eventSortValue(b));
     if (penaltis.length) {
       lines.push("");
-      penaltis.forEach((e) => { const p = playerById(e.playerId); lines.push(`🧤 ${e.minute}' Pênalti defendido por ${p ? p.name : "?"}`); });
+      penaltis.forEach((e) => { const p = playerById(e.playerId); lines.push(`🧤 ${timeLabel(e)} Pênalti defendido por ${p ? p.name : "?"}`); });
     }
 
     if (match.lineup?.captainId) {
@@ -720,6 +746,12 @@ function buildShareText(match, config, playerById, getOpponentName, getCompetiti
   lines.push("");
   lines.push(`_Gerado pelo app do ${teamName}_`);
   return lines.join("\n");
+}
+
+function eventSortValue(e) {
+  const periodRank = e?.period === "2" ? 1 : 0;
+  const minuteRank = e?.minute == null ? 9999 : e.minute;
+  return periodRank * 10000 + minuteRank;
 }
 
 function matchTimestamp(m) {
@@ -862,9 +894,14 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
   const playerMatches = matches.filter((m) => {
     const slotIds = Object.values(m.lineup?.slots || {});
     const benchIds = m.lineup?.bench || [];
-    const enteredFromBench = (m.events || []).some((e) => e.type === "substituicao" && e.playerInId === playerId);
-    return slotIds.includes(playerId) || (benchIds.includes(playerId) && enteredFromBench);
+    return slotIds.includes(playerId) || benchIds.includes(playerId);
   }).sort((a, b) => matchTimestamp(b) - matchTimestamp(a));
+
+  function didPlayerPlay(m) {
+    const slotIds = Object.values(m.lineup?.slots || {});
+    if (slotIds.includes(playerId)) return true;
+    return (m.events || []).some((e) => e.type === "substituicao" && e.playerInId === playerId);
+  }
 
   return (
     <div>
@@ -915,7 +952,7 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
       ) : (
         <div style={S.card}>
           {playerMatches.map((m) => (
-            <PlayerCompactMatchRow key={m.id} match={m} playerId={playerId} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} onClick={() => onOpenMatch(m.id)} />
+            <PlayerCompactMatchRow key={m.id} match={m} playerId={playerId} didPlay={didPlayerPlay(m)} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} onClick={() => onOpenMatch(m.id)} />
           ))}
         </div>
       )}
@@ -930,15 +967,16 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
   );
 }
 
-function PlayerCompactMatchRow({ match, playerId, getOpponentName, getCompetitionInfo, onClick }) {
+function PlayerCompactMatchRow({ match, playerId, didPlay, getOpponentName, getCompetitionInfo, onClick }) {
   const isFinished = match.status === "encerrado";
   const badges = getPlayerBadges(playerId, match.events || [], { excludeSub: true });
   const comp = COMP_TYPES[getCompetitionInfo(match).type] || COMP_TYPES.amistoso;
   return (
-    <div style={S.playerMatchRow} onClick={onClick}>
+    <div style={{ ...S.playerMatchRow, opacity: didPlay ? 1 : 0.55 }} onClick={onClick}>
       <span style={{ ...S.compBadge, background: comp.varBg, color: comp.varText }}>{comp.label[0]}</span>
       <span style={S.playerMatchDate}>{formatDateShort(match.date)}</span>
       <span style={S.playerMatchOpponent}>{getOpponentName(match)}</span>
+      {!didPlay && <span style={S.benchTag}>Banco</span>}
       {badges && <span style={{ fontSize: 13 }}>{badges}</span>}
       {isFinished ? (
         <span style={S.playerMatchScore}>{match.scoreTeam}-{match.scoreOpponent}{match.penaltyShootout ? <span style={S.playerMatchPen}> pên.</span> : ""}</span>
@@ -953,7 +991,7 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
   const compInfo = getCompetitionInfo(match);
   const comp = COMP_TYPES[compInfo.type] || COMP_TYPES.amistoso;
   const isFinished = match.status === "encerrado";
-  const events = [...(match.events || [])].sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+  const events = [...(match.events || [])].sort((a, b) => eventSortValue(a) - eventSortValue(b));
   const formation = match.lineup?.formation || "4-4-2";
   const slots = match.lineup?.slots || {};
   const bench = (match.lineup?.bench || []).map(playerById).filter(Boolean);
@@ -1169,14 +1207,23 @@ function EventRow({ event, playerById, onOpenPlayer, onEdit, onRemove }) {
   const assist = event.assistId ? playerById(event.assistId) : null;
   const playerOut = event.playerOutId ? playerById(event.playerOutId) : null;
   const playerIn = event.playerInId ? playerById(event.playerInId) : null;
+  const periodLabel = event.period === "1" ? "1ºT" : event.period === "2" ? "2ºT" : "";
+  const timeLabel = event.minute != null ? `${event.minute}'${periodLabel ? ` ${periodLabel}` : ""}` : (periodLabel || "—");
   return (
     <div style={S.eventRow}>
-      <span style={S.eventMinute}>{event.minute}'</span>
+      <span style={S.eventMinute}>{timeLabel}</span>
       {event.type === "gol" && (
         <><span style={S.eventIcon}>⚽</span><div style={{ flex: 1 }}>
           <div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink></div>
           {event.golType && <div style={S.eventSub}>{event.golType}</div>}
           {assist && <div style={S.eventSub}>Assistência: <PlayerLink player={assist} onOpenPlayer={onOpenPlayer}>{assist.name}</PlayerLink></div>}
+        </div></>
+      )}
+      {event.type === "gol_adversario" && (
+        <><span style={S.eventIcon}>⚽</span><div style={{ flex: 1 }}>
+          <div style={S.eventMain}>Gol do adversário</div>
+          {event.golType && <div style={S.eventSub}>{event.golType}</div>}
+          {event.note && <div style={S.eventSub}>{event.note}</div>}
         </div></>
       )}
       {event.type === "amarelo" && (
@@ -1887,7 +1934,7 @@ function EditMatchModal({ match, opponents, competitions, venues, onCreateOppone
       />
       <div style={{ display: "flex", gap: 10 }}>
         <Field label="Data"><input style={S.input} type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-        <Field label="Horário"><input style={S.input} type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
+        <Field label="Horário (opcional)"><input style={S.input} type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
       </div>
       <Field label="Tipo de partida">
         <select style={S.input} value={competitionType} onChange={(e) => handleTypeChange(e.target.value)}>
@@ -1953,7 +2000,7 @@ function AddMatchModal({ opponents, competitions, venues, onCreateOpponent, onCr
       />
       <div style={{ display: "flex", gap: 10 }}>
         <Field label="Data"><input style={S.input} type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-        <Field label="Horário"><input style={S.input} type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
+        <Field label="Horário (opcional)"><input style={S.input} type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
       </div>
       <Field label="Tipo de partida">
         <select style={S.input} value={competitionType} onChange={(e) => handleTypeChange(e.target.value)}>
@@ -2264,13 +2311,14 @@ function AddEventModal({ match, players, event, onClose, onSave }) {
   const [playerInId, setPlayerInId] = useState(event?.playerInId || "");
   const [goalkeeperId, setGoalkeeperId] = useState(event?.type === "penaltidefendido" ? (event.playerId || "") : (gkOptions[0]?.id || ""));
   const [note, setNote] = useState(event?.note || "");
+  const [period, setPeriod] = useState(event?.period || "");
   const [minute, setMinute] = useState(event?.minute ?? "");
 
   const inOptions = players.filter((p) => p.id !== playerOutId && !onFieldIds.filter((id) => id !== playerOutId).includes(p.id));
   const needsPlayer = type === "gol" || type === "amarelo" || type === "vermelho" || type === "substituicao";
 
   const isValid = type === "substituicao" ? (playerOutId && playerInId && playerOutId !== playerInId)
-    : type === "golcontra" ? true
+    : type === "golcontra" || type === "gol_adversario" ? true
     : type === "penaltidefendido" ? !!goalkeeperId
     : !!playerId;
 
@@ -2280,11 +2328,12 @@ function AddEventModal({ match, players, event, onClose, onSave }) {
       id: event?.id || uid(), type,
       playerId: type === "gol" || type === "amarelo" || type === "vermelho" ? playerId : type === "penaltidefendido" ? goalkeeperId : null,
       assistId: type === "gol" && assistId ? assistId : null,
-      golType: type === "gol" && golType ? golType : null,
+      golType: (type === "gol" || type === "gol_adversario") && golType ? golType : null,
       playerOutId: type === "substituicao" ? playerOutId : null,
       playerInId: type === "substituicao" ? playerInId : null,
-      note: type === "golcontra" && note.trim() ? note.trim() : null,
-      minute: minute === "" ? 0 : Math.max(0, Math.min(120, Number(minute))),
+      note: (type === "golcontra" || type === "gol_adversario") && note.trim() ? note.trim() : null,
+      period: period || null,
+      minute: minute === "" ? null : Math.max(0, Math.min(120, Number(minute))),
     });
   }
 
@@ -2292,7 +2341,8 @@ function AddEventModal({ match, players, event, onClose, onSave }) {
     <ModalShell title={event ? "Editar evento" : "Adicionar evento"} onClose={onClose} footer={<button style={S.primaryBtn} onClick={save} disabled={!isValid}>{event ? "Salvar alterações" : "Adicionar"}</button>}>
       <Field label="Tipo de evento">
         <select style={S.input} value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="gol">Gol</option>
+          <option value="gol">Gol nosso</option>
+          <option value="gol_adversario">Gol do adversário</option>
           <option value="golcontra">Gol contra (a favor)</option>
           <option value="amarelo">Cartão amarelo</option>
           <option value="vermelho">Cartão vermelho</option>
@@ -2313,7 +2363,7 @@ function AddEventModal({ match, players, event, onClose, onSave }) {
             </Field>
           )}
 
-          {type === "gol" && (
+          {(type === "gol" || type === "gol_adversario") && (
             <Field label="Tipo do gol (opcional)">
               <select style={S.input} value={golType} onChange={(e) => setGolType(e.target.value)}>
                 <option value="">Gol normal</option>
@@ -2357,15 +2407,32 @@ function AddEventModal({ match, players, event, onClose, onSave }) {
       )}
 
       {type === "golcontra" && (
-        <>
-          <Field label="Observação (opcional)">
-            <input style={S.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex: zagueiro nº5 do adversário" />
-          </Field>
-          <p style={S.helpText}>Esse gol conta como ponto para o nosso time no placar, sem entrar nas estatísticas pessoais de nenhum jogador nosso.</p>
-        </>
+        <Field label="Observação (opcional)">
+          <input style={S.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex: zagueiro nº5 do adversário" />
+        </Field>
+      )}
+      {type === "golcontra" && (
+        <p style={S.helpText}>Esse gol conta como ponto para o nosso time no placar, sem entrar nas estatísticas pessoais de nenhum jogador nosso.</p>
+      )}
+      {type === "gol_adversario" && (
+        <Field label="Observação (opcional)">
+          <input style={S.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex: camisa 9 deles" />
+        </Field>
       )}
 
-      <Field label="Minuto"><input style={S.input} type="number" min="0" max="120" value={minute} onChange={(e) => setMinute(e.target.value)} placeholder="Ex: 34" /></Field>
+      <div style={{ display: "flex", gap: 10 }}>
+        <Field label="Tempo (opcional)">
+          <select style={S.input} value={period} onChange={(e) => setPeriod(e.target.value)}>
+            <option value="">Não especificado</option>
+            <option value="1">1º tempo</option>
+            <option value="2">2º tempo</option>
+          </select>
+        </Field>
+        <Field label="Minuto (opcional)">
+          <input style={S.input} type="number" min="0" max="120" value={minute} onChange={(e) => setMinute(e.target.value)} placeholder="Se souber" />
+        </Field>
+      </div>
+      <p style={S.helpText}>Não lembra o minuto exato? Sem problema — só marcar o tempo já ajuda a contar a história da partida.</p>
     </ModalShell>
   );
 }
@@ -2478,6 +2545,7 @@ const S = {
   playerMatchRow: { display: "flex", alignItems: "center", gap: 8, padding: "9px 0", borderBottom: "1px solid var(--line)", cursor: "pointer" },
   playerMatchDate: { fontSize: 11, color: "var(--text-dim)", width: 44, flexShrink: 0 },
   compBadge: { width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 },
+  benchTag: { fontSize: 9.5, fontWeight: 700, color: "var(--text-dim)", border: "1px solid var(--line)", borderRadius: 999, padding: "2px 6px", textTransform: "uppercase", flexShrink: 0 },
   playerMatchOpponent: { flex: 1, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   playerMatchScore: { fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, whiteSpace: "nowrap" },
   playerMatchPen: { fontSize: 9, color: "var(--text-dim)", fontFamily: "var(--font-body)" },
@@ -2504,7 +2572,7 @@ const S = {
   lineupChip: { display: "flex", alignItems: "center", gap: 6, background: "var(--surface-2)", padding: "4px 10px 4px 4px", borderRadius: 999, fontSize: 12.5 },
   lineupPickRow: { width: "100%", display: "flex", alignItems: "center", gap: 10, background: "transparent", border: "none", borderBottom: "1px solid var(--line)", padding: "10px 2px", color: "var(--text)" },
   eventRow: { display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid var(--line)" },
-  eventMinute: { fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text-dim)", width: 30, flexShrink: 0 },
+  eventMinute: { fontFamily: "var(--font-display)", fontSize: 14, color: "var(--text-dim)", width: 42, flexShrink: 0 },
   eventIcon: { fontSize: 16, flexShrink: 0 },
   eventMain: { fontSize: 13.5, fontWeight: 600 },
   eventSub: { fontSize: 11.5, color: "var(--text-dim)" },
