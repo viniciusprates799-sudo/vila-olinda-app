@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "./firebaseClient";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { db, auth } from "./firebaseClient";
 import {
   Plus, X, Calendar, Clock, MapPin, Trophy, Users, BarChart3,
   ChevronRight, ArrowLeft, Trash2, Pencil, Settings, Check, Image as ImageIcon, Video, Filter,
-  MessageCircle, Copy
+  MessageCircle, Copy, LogIn, LogOut
 } from "lucide-react";
 
 const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
@@ -126,6 +127,10 @@ async function storageSet(key, value, shared) {
 
 export default function App() {
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const isAdmin = !!user;
   const [config, setConfig] = useState({ name: "Meu Time", emoji: "⚽", cidade: "" });
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
@@ -150,6 +155,26 @@ export default function App() {
   const [showMatchStaff, setShowMatchStaff] = useState(false);
   const [showPenalties, setShowPenalties] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthChecked(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  async function handleLogin(email, password) {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      return null;
+    } catch (e) {
+      return "E-mail ou senha inválidos.";
+    }
+  }
+  async function handleLogout() {
+    await signOut(auth);
+  }
 
   useEffect(() => {
     (async () => {
@@ -334,7 +359,7 @@ export default function App() {
   return (
     <div className="app-shell" style={S.appShell}>
       <StyleBlock />
-      <Header config={config} onOpenConfig={() => setShowConfig(true)} />
+      <Header config={config} isAdmin={isAdmin} onOpenConfig={() => setShowConfig(true)} onOpenLogin={() => setShowLogin(true)} />
       <div style={S.content}>
         {viewingPlayerId ? (
           <PlayerProfile
@@ -349,6 +374,7 @@ export default function App() {
             {tab === "jogos" && !selectedMatch && !viewingOpponentId && (
               <JogosTab
                 key={`${jogosJumpFilter.type}-${jogosJumpFilter.competitionId}`}
+                isAdmin={isAdmin}
                 upcoming={upcoming} pendingResult={pendingResult} finished={finished} opponents={opponents} competitions={competitions}
                 getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
                 onOpenMatch={(id) => setSelectedMatchId(id)} onAddMatch={() => setShowAddMatch(true)}
@@ -364,6 +390,7 @@ export default function App() {
             )}
             {tab === "jogos" && selectedMatch && (
               <MatchDetail
+                isAdmin={isAdmin}
                 match={selectedMatch} config={config} playerById={playerById} players={players}
                 getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
                 getStaffName={getStaffName}
@@ -395,25 +422,25 @@ export default function App() {
               />
             )}
             {tab === "elenco" && (
-              <ElencoTab players={players} config={config} getPlayerStats={getPlayerStats} getGoalkeeperStats={getGoalkeeperStats} onAdd={() => setShowAddPlayer("new")} onEdit={(p) => setShowAddPlayer(p)} onDelete={deletePlayer} onOpenConfig={() => setShowConfig(true)} onOpenPlayer={(id) => setViewingPlayerId(id)} />
+              <ElencoTab isAdmin={isAdmin} players={players} config={config} getPlayerStats={getPlayerStats} getGoalkeeperStats={getGoalkeeperStats} onAdd={() => setShowAddPlayer("new")} onEdit={(p) => setShowAddPlayer(p)} onDelete={deletePlayer} onOpenConfig={() => setShowConfig(true)} onOpenPlayer={(id) => setViewingPlayerId(id)} />
             )}
             {tab === "stats" && (
-              <StatsTab matches={matches} players={players} competitions={competitions} getCompetitionInfo={getCompetitionInfo} config={config} onUpdateStandings={updateStandings} onOpenPlayer={(id) => setViewingPlayerId(id)} />
+              <StatsTab isAdmin={isAdmin} matches={matches} players={players} competitions={competitions} getCompetitionInfo={getCompetitionInfo} config={config} onUpdateStandings={updateStandings} onOpenPlayer={(id) => setViewingPlayerId(id)} />
             )}
           </>
         )}
       </div>
       <BottomNav tab={tab} onChange={(t) => { setTab(t); setSelectedMatchId(null); setViewingOpponentId(null); setViewingPlayerId(null); }} />
 
-      {showConfig && (
+      {isAdmin && showConfig && (
         <ConfigModal
           config={config} players={players} matches={matches} opponents={opponents} competitions={competitions} venues={venues} staffMembers={staffMembers}
           onClose={() => setShowConfig(false)} onSave={(next) => { persistConfig(next); setShowConfig(false); }}
-          onImport={importAllData}
+          onImport={importAllData} onLogout={handleLogout}
         />
       )}
 
-      {showAddMatch && (
+      {isAdmin && showAddMatch && (
         <AddMatchModal
           opponents={opponents} competitions={competitions} venues={venues}
           onCreateOpponent={createOpponent} onCreateCompetition={createCompetition} onCreateVenue={createVenue}
@@ -422,7 +449,7 @@ export default function App() {
         />
       )}
 
-      {showEditMatch && selectedMatch && (
+      {isAdmin && showEditMatch && selectedMatch && (
         <EditMatchModal
           match={selectedMatch} opponents={opponents} competitions={competitions} venues={venues}
           onCreateOpponent={createOpponent} onCreateCompetition={createCompetition} onCreateVenue={createVenue}
@@ -431,7 +458,7 @@ export default function App() {
         />
       )}
 
-      {showMatchStaff && selectedMatch && (
+      {isAdmin && showMatchStaff && selectedMatch && (
         <MatchStaffModal
           match={selectedMatch} staffMembers={staffMembers} onCreateStaff={createStaffMember}
           onClose={() => setShowMatchStaff(false)}
@@ -442,7 +469,7 @@ export default function App() {
         />
       )}
 
-      {showPenalties && selectedMatch && (
+      {isAdmin && showPenalties && selectedMatch && (
         <PenaltyShootoutModal
           match={selectedMatch} players={players}
           onClose={() => setShowPenalties(false)}
@@ -453,7 +480,7 @@ export default function App() {
         />
       )}
 
-      {showAddPlayer && (
+      {isAdmin && showAddPlayer && (
         <AddPlayerModal
           player={showAddPlayer === "new" ? null : showAddPlayer}
           onClose={() => setShowAddPlayer(null)}
@@ -465,7 +492,7 @@ export default function App() {
         />
       )}
 
-      {showScoreForm && selectedMatch && (
+      {isAdmin && showScoreForm && selectedMatch && (
         <ScoreModal
           match={selectedMatch} getOpponentName={getOpponentName}
           onClose={() => setShowScoreForm(false)}
@@ -476,7 +503,7 @@ export default function App() {
         />
       )}
 
-      {showLineup && selectedMatch && (
+      {isAdmin && showLineup && selectedMatch && (
         <EscalacaoModal
           match={selectedMatch} players={players}
           onClose={() => setShowLineup(false)}
@@ -484,7 +511,7 @@ export default function App() {
         />
       )}
 
-      {showAddEvent && selectedMatch && (
+      {isAdmin && showAddEvent && selectedMatch && (
         <AddEventModal
           match={selectedMatch} players={players}
           event={showAddEvent === "new" ? null : showAddEvent}
@@ -499,7 +526,7 @@ export default function App() {
         />
       )}
 
-      {showAddMedia && selectedMatch && (
+      {isAdmin && showAddMedia && selectedMatch && (
         <AddMediaModal
           onClose={() => setShowAddMedia(false)}
           onSave={(media) => { persistMatches(matches.map((m) => m.id === selectedMatch.id ? { ...m, media: [...(m.media || []), media] } : m)); setShowAddMedia(false); }}
@@ -514,12 +541,16 @@ export default function App() {
           onConfirm={confirmDialog.onConfirm}
         />
       )}
+
+      {showLogin && (
+        <LoginModal onClose={() => setShowLogin(false)} onLogin={handleLogin} />
+      )}
     </div>
   );
 }
 
 /* ---------- Header ---------- */
-function Header({ config, onOpenConfig }) {
+function Header({ config, isAdmin, onOpenConfig, onOpenLogin }) {
   return (
     <div style={S.header}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -529,13 +560,17 @@ function Header({ config, onOpenConfig }) {
           {config.cidade ? <div style={S.headerSub}>{config.cidade}</div> : null}
         </div>
       </div>
-      <button style={S.iconBtn} onClick={onOpenConfig} aria-label="Configurações"><Settings size={19} color="var(--text-dim)" /></button>
+      {isAdmin ? (
+        <button style={S.iconBtn} onClick={onOpenConfig} aria-label="Configurações"><Settings size={19} color="var(--text-dim)" /></button>
+      ) : (
+        <button style={S.iconBtn} onClick={onOpenLogin} aria-label="Entrar"><LogIn size={19} color="var(--text-dim)" /></button>
+      )}
     </div>
   );
 }
 
 /* ---------- Jogos Tab ---------- */
-function JogosTab({ upcoming, pendingResult, finished, opponents, competitions, getOpponentName, getCompetitionInfo, getVenueName, onOpenMatch, onAddMatch, initialFilterType, initialFilterCompetitionId }) {
+function JogosTab({ isAdmin, upcoming, pendingResult, finished, opponents, competitions, getOpponentName, getCompetitionInfo, getVenueName, onOpenMatch, onAddMatch, initialFilterType, initialFilterCompetitionId }) {
   const [filterType, setFilterType] = useState(initialFilterType || "todos");
   const [filterOpponentId, setFilterOpponentId] = useState("todos");
   const [filterCompetitionId, setFilterCompetitionId] = useState(initialFilterCompetitionId || "todas");
@@ -629,7 +664,7 @@ function JogosTab({ upcoming, pendingResult, finished, opponents, competitions, 
         <MatchCard key={m.id} match={m} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName} onClick={() => onOpenMatch(m.id)} />
       ))}
 
-      <FloatingAddButton onClick={onAddMatch} label="Nova partida" />
+      {isAdmin && <FloatingAddButton onClick={onAddMatch} label="Nova partida" />}
     </div>
   );
 }
@@ -987,7 +1022,7 @@ function PlayerCompactMatchRow({ match, playerId, didPlay, getOpponentName, getC
 }
 
 /* ---------- Match Detail ---------- */
-function MatchDetail({ match, config, playerById, players, getOpponentName, getCompetitionInfo, getVenueName, getStaffName, onBack, onDelete, onRegisterScore, onEditLineup, onAddEvent, onEditEvent, onAddMedia, onOpenOpponent, onOpenCompetition, onEditMatch, onEditStaff, onEditPenalties, onOpenPlayer, onRemoveEvent, onRemoveMedia }) {
+function MatchDetail({ isAdmin, match, config, playerById, players, getOpponentName, getCompetitionInfo, getVenueName, getStaffName, onBack, onDelete, onRegisterScore, onEditLineup, onAddEvent, onEditEvent, onAddMedia, onOpenOpponent, onOpenCompetition, onEditMatch, onEditStaff, onEditPenalties, onOpenPlayer, onRemoveEvent, onRemoveMedia }) {
   const compInfo = getCompetitionInfo(match);
   const comp = COMP_TYPES[compInfo.type] || COMP_TYPES.amistoso;
   const isFinished = match.status === "encerrado";
@@ -1019,10 +1054,12 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
     <div>
       <div style={S.detailTopBar}>
         <button style={S.iconBtn} onClick={onBack} aria-label="Voltar"><ArrowLeft size={20} color="var(--text)" /></button>
-        <div style={{ display: "flex", gap: 2 }}>
-          <button style={S.iconBtn} onClick={onEditMatch} aria-label="Editar dados da partida"><Pencil size={17} color="var(--text-dim)" /></button>
-          <button style={S.iconBtn} onClick={onDelete} aria-label="Excluir partida"><Trash2 size={18} color="var(--danger)" /></button>
-        </div>
+        {isAdmin && (
+          <div style={{ display: "flex", gap: 2 }}>
+            <button style={S.iconBtn} onClick={onEditMatch} aria-label="Editar dados da partida"><Pencil size={17} color="var(--text-dim)" /></button>
+            <button style={S.iconBtn} onClick={onDelete} aria-label="Excluir partida"><Trash2 size={18} color="var(--danger)" /></button>
+          </div>
+        )}
       </div>
 
       <div style={S.scoreboard}>
@@ -1040,8 +1077,8 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
         </div>
         <div style={S.scoreboardMeta}><span><Calendar size={13} /> {formatDateLong(match.date)}</span><span><Clock size={13} /> {match.time}</span></div>
         {venueName && <div style={S.scoreboardMeta}><MapPin size={13} /> {venueName}</div>}
-        {!isFinished && <button style={S.primaryBtn} onClick={onRegisterScore}>Registrar resultado</button>}
-        {isFinished && <button style={S.ghostBtn} onClick={onRegisterScore}><Pencil size={13} style={{ marginRight: 6 }} /> Editar placar</button>}
+        {isAdmin && !isFinished && <button style={S.primaryBtn} onClick={onRegisterScore}>Registrar resultado</button>}
+        {isAdmin && isFinished && <button style={S.ghostBtn} onClick={onRegisterScore}><Pencil size={13} style={{ marginRight: 6 }} /> Editar placar</button>}
 
         <div style={{ display: "flex", gap: 8, width: "100%", marginTop: 12 }}>
           <button style={S.whatsappBtn} onClick={handleShareWhatsApp}>
@@ -1056,7 +1093,7 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
 
       {(isFinished && match.scoreTeam === match.scoreOpponent) || match.penaltyShootout ? (
         <>
-          <SectionHeader title="Disputa de pênaltis" action={{ label: match.penaltyShootout ? "Editar" : "Adicionar", onClick: onEditPenalties }} />
+          <SectionHeader title="Disputa de pênaltis" action={isAdmin ? { label: match.penaltyShootout ? "Editar" : "Adicionar", onClick: onEditPenalties } : undefined} />
           {!match.penaltyShootout ? (
             <EmptyState text="Empate no tempo normal? Registre aqui a disputa de pênaltis." />
           ) : (
@@ -1099,7 +1136,7 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
         </>
       ) : null}
 
-      <SectionHeader title="Escalação" action={{ label: "Gerenciar", onClick: onEditLineup }} />
+      <SectionHeader title="Escalação" action={isAdmin ? { label: "Gerenciar", onClick: onEditLineup } : undefined} />
       {!hasLineup ? (
         <EmptyState text="Escalação ainda não montada. Toque em Gerenciar para escalar o time no campo." />
       ) : (
@@ -1123,7 +1160,7 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
         </div>
       )}
 
-      <SectionHeader title="Comissão técnica" action={{ label: "Editar", onClick: onEditStaff }} />
+      <SectionHeader title="Comissão técnica" action={isAdmin ? { label: "Editar", onClick: onEditStaff } : undefined} />
       {!match.tecnicoId && !match.auxiliarTecnicoId ? (
         <EmptyState text="Nenhum membro da comissão técnica definido para esta partida." />
       ) : (
@@ -1139,14 +1176,14 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
         </div>
       )}
 
-      <SectionHeader title="Eventos da partida" action={{ label: "Adicionar", onClick: onAddEvent }} />
+      <SectionHeader title="Eventos da partida" action={isAdmin ? { label: "Adicionar", onClick: onAddEvent } : undefined} />
       {events.length === 0 ? (
         <EmptyState text="Nenhum gol ou cartão registrado ainda." />
       ) : (
-        <div style={S.card}>{events.map((e) => <EventRow key={e.id} event={e} playerById={playerById} onOpenPlayer={onOpenPlayer} onEdit={() => onEditEvent(e)} onRemove={() => onRemoveEvent(e.id)} />)}</div>
+        <div style={S.card}>{events.map((e) => <EventRow key={e.id} event={e} playerById={playerById} onOpenPlayer={onOpenPlayer} isAdmin={isAdmin} onEdit={() => onEditEvent(e)} onRemove={() => onRemoveEvent(e.id)} />)}</div>
       )}
 
-      <SectionHeader title="Mídias" action={{ label: "Adicionar", onClick: onAddMedia }} />
+      <SectionHeader title="Mídias" action={isAdmin ? { label: "Adicionar", onClick: onAddMedia } : undefined} />
       {media.length === 0 ? (
         <EmptyState text="Nenhuma foto ou vídeo ainda. Cole o link de uma imagem ou de um vídeo hospedado (Drive, YouTube etc.)." />
       ) : (
@@ -1162,7 +1199,7 @@ function MatchDetail({ match, config, playerById, players, getOpponentName, getC
               )}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 {item.caption && item.type === "foto" && <div style={S.mediaCaption}>{item.caption}</div>}
-                <button style={S.smallIconBtn} onClick={() => onRemoveMedia(item.id)} aria-label="Remover mídia"><Trash2 size={13} color="var(--text-dim)" /></button>
+                {isAdmin && <button style={S.smallIconBtn} onClick={() => onRemoveMedia(item.id)} aria-label="Remover mídia"><Trash2 size={13} color="var(--text-dim)" /></button>}
               </div>
             </div>
           ))}
@@ -1202,7 +1239,7 @@ function PlayerLink({ player, onOpenPlayer, children }) {
   );
 }
 
-function EventRow({ event, playerById, onOpenPlayer, onEdit, onRemove }) {
+function EventRow({ event, playerById, onOpenPlayer, isAdmin, onEdit, onRemove }) {
   const scorer = playerById(event.playerId);
   const assist = event.assistId ? playerById(event.assistId) : null;
   const playerOut = event.playerOutId ? playerById(event.playerOutId) : null;
@@ -1244,8 +1281,12 @@ function EventRow({ event, playerById, onOpenPlayer, onEdit, onRemove }) {
       {event.type === "penaltidefendido" && (
         <><span style={S.eventIcon}>🧤</span><div style={{ flex: 1 }}><div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink></div><div style={S.eventSub}>Pênalti defendido</div></div></>
       )}
-      <button style={S.smallIconBtn} onClick={onEdit} aria-label="Editar evento"><Pencil size={13} color="var(--text-dim)" /></button>
-      <button style={S.smallIconBtn} onClick={onRemove} aria-label="Remover evento"><Trash2 size={14} color="var(--text-dim)" /></button>
+      {isAdmin && (
+        <>
+          <button style={S.smallIconBtn} onClick={onEdit} aria-label="Editar evento"><Pencil size={13} color="var(--text-dim)" /></button>
+          <button style={S.smallIconBtn} onClick={onRemove} aria-label="Remover evento"><Trash2 size={14} color="var(--text-dim)" /></button>
+        </>
+      )}
     </div>
   );
 }
@@ -1311,7 +1352,7 @@ function Pitch({ formation, slots, playersById, activeSlotId, onSlotClick, event
 }
 
 /* ---------- Elenco Tab ---------- */
-function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd, onEdit, onDelete, onOpenConfig, onOpenPlayer }) {
+function ElencoTab({ isAdmin, players, config, getPlayerStats, getGoalkeeperStats, onAdd, onEdit, onDelete, onOpenConfig, onOpenPlayer }) {
   const hasStaff = config?.tecnico || config?.auxiliarTecnico;
   const activePlayers = players.filter((p) => p.ativo !== false);
   const inactivePlayers = players.filter((p) => p.ativo === false);
@@ -1320,7 +1361,7 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
 
   return (
     <div>
-      <SectionHeader title="Comissão técnica" action={{ label: "Editar", onClick: onOpenConfig }} />
+      <SectionHeader title="Comissão técnica" action={isAdmin ? { label: "Editar", onClick: onOpenConfig } : undefined} />
       {!hasStaff ? (
         <EmptyState text="Nenhum técnico cadastrado ainda. Toque em Editar para adicionar." />
       ) : (
@@ -1361,8 +1402,12 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
                         <span>{stats.jogos}J · {stats.goals}G · {stats.assists}A</span>
                       )}
                     </div>
-                    <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
-                    <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
+                    {isAdmin && (
+                      <>
+                        <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
+                        <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -1385,8 +1430,12 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
                     <div style={S.playerName}>{p.name}</div>
                     <div style={S.playerPos}>{formatPositions(p)}</div>
                   </div>
-                  <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
-                  <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
+                  {isAdmin && (
+                    <>
+                      <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar jogador"><Pencil size={13} color="var(--text-dim)" /></button>
+                      <button style={S.smallIconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Remover jogador"><Trash2 size={13} color="var(--text-dim)" /></button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -1402,7 +1451,7 @@ function ElencoTab({ players, config, getPlayerStats, getGoalkeeperStats, onAdd,
           <span><b>SG</b> jogos sem sofrer gol</span>
         </div>
       )}
-      <FloatingAddButton onClick={onAdd} label="Novo jogador" />
+      {isAdmin && <FloatingAddButton onClick={onAdd} label="Novo jogador" />}
     </div>
   );
 }
@@ -1411,7 +1460,7 @@ function StatMini({ label, value }) {
 }
 
 /* ---------- Stats Tab ---------- */
-function StatsTab({ matches, players, competitions, getCompetitionInfo, config, onUpdateStandings, onOpenPlayer }) {
+function StatsTab({ isAdmin, matches, players, competitions, getCompetitionInfo, config, onUpdateStandings, onOpenPlayer }) {
   const [filterCompetitionId, setFilterCompetitionId] = useState("todas");
   const [showStandings, setShowStandings] = useState(false);
 
@@ -1466,7 +1515,7 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
 
       {selectedCompetition && (
         <>
-          <SectionHeader title="Tabela de classificação" action={{ label: "Editar", onClick: () => setShowStandings(true) }} />
+          <SectionHeader title="Tabela de classificação" action={isAdmin ? { label: "Editar", onClick: () => setShowStandings(true) } : undefined} />
           {!selectedCompetition.standings || selectedCompetition.standings.length === 0 ? (
             <EmptyState text="Nenhuma tabela cadastrada ainda. Toque em Editar para lançar a classificação do grupo." />
           ) : (
@@ -1580,7 +1629,7 @@ function StatsTab({ matches, players, competitions, getCompetitionInfo, config, 
         </div>
       )}
 
-      {showStandings && selectedCompetition && (
+      {isAdmin && showStandings && selectedCompetition && (
         <StandingsModal
           competition={selectedCompetition} config={config} teamRecord={teamRecord}
           onClose={() => setShowStandings(false)}
@@ -1723,6 +1772,32 @@ function ModalShell({ title, onClose, children, footer }) {
 }
 function Field({ label, children }) { return <div style={{ marginBottom: 14 }}><label style={S.fieldLabel}>{label}</label>{children}</div>; }
 
+function LoginModal({ onClose, onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit() {
+    if (!email.trim() || !password) return;
+    setLoading(true);
+    setError("");
+    const errMsg = await onLogin(email.trim(), password);
+    setLoading(false);
+    if (errMsg) setError(errMsg);
+    else onClose();
+  }
+
+  return (
+    <ModalShell title="Entrar" onClose={onClose} footer={<button style={S.primaryBtn} onClick={handleSubmit} disabled={loading}>{loading ? "Entrando…" : "Entrar"}</button>}>
+      <p style={S.helpText}>Só quem tem uma conta autorizada consegue editar o app. Sem login, dá pra ver tudo normalmente.</p>
+      <Field label="E-mail"><input style={S.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" autoCapitalize="none" /></Field>
+      <Field label="Senha"><input style={S.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" /></Field>
+      {error && <p style={{ ...S.helpText, color: "var(--danger)" }}>{error}</p>}
+    </ModalShell>
+  );
+}
+
 function ConfirmModal({ message, confirmLabel, onCancel, onConfirm }) {
   return (
     <div style={S.modalOverlay} onClick={onCancel}>
@@ -1818,7 +1893,7 @@ function CompetitionPicker({ competitions, type, valueId, onChange, onCreate }) 
 }
 
 /* ---------- Modals ---------- */
-function ConfigModal({ config, players, matches, opponents, competitions, venues, staffMembers, onClose, onSave, onImport }) {
+function ConfigModal({ config, players, matches, opponents, competitions, venues, staffMembers, onClose, onSave, onImport, onLogout }) {
   const [name, setName] = useState(config.name || "");
   const [emoji, setEmoji] = useState(config.emoji || "⚽");
   const [cidade, setCidade] = useState(config.cidade || "");
@@ -1874,6 +1949,13 @@ function ConfigModal({ config, players, matches, opponents, competitions, venues
         <input ref={fileInputRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={handleImportFile} />
         {importError && <p style={{ ...S.helpText, color: "var(--danger)" }}>{importError}</p>}
         <p style={S.helpText}>Exportar baixa um arquivo com todos os dados do time — jogadores, partidas, competições, adversários e campos. Guarde-o em local seguro. Importar substitui totalmente os dados atuais pelo conteúdo do arquivo.</p>
+      </div>
+
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+        <div style={S.lineupLabel}>Conta</div>
+        <button style={{ ...S.ghostBtn, width: "100%", justifyContent: "center", marginTop: 8, color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => { onLogout(); onClose(); }}>
+          <LogOut size={14} style={{ marginRight: 6 }} /> Sair da conta
+        </button>
       </div>
     </ModalShell>
   );
