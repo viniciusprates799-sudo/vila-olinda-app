@@ -169,7 +169,7 @@ export default function App() {
       await signInWithEmailAndPassword(auth, email, password);
       return null;
     } catch (e) {
-      return "E-mail ou senha inválidos.";
+      return `Erro ao entrar (${e.code || e.message || "desconhecido"})`;
     }
   }
   async function handleLogout() {
