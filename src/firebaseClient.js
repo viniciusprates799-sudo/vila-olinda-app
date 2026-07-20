@@ -3,7 +3,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCggeL8S5bnckPd_IZ5Yt2Ichb-98VuhDo",
+  apiKey: "AIzaSyCggeL8S5bnckPd_IZ5Yt2Ichb-98VUhDo",
   authDomain: "vila-olinda-app.firebaseapp.com",
   projectId: "vila-olinda-app",
   storageBucket: "vila-olinda-app.firebasestorage.app",
