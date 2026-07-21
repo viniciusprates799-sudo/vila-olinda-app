@@ -528,6 +528,7 @@ export default function App() {
 
       {isAdmin && showAddMedia && selectedMatch && (
         <AddMediaModal
+          players={players}
           onClose={() => setShowAddMedia(false)}
           onSave={(media) => { persistMatches(matches.map((m) => m.id === selectedMatch.id ? { ...m, media: [...(m.media || []), media] } : m)); setShowAddMedia(false); }}
         />
@@ -1040,6 +1041,15 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
     return (m.events || []).some((e) => e.type === "substituicao" && e.playerInId === playerId);
   }
 
+  const taggedPhotos = [];
+  matches.forEach((m) => {
+    (m.media || []).forEach((item) => {
+      if (item.type === "foto" && (item.taggedPlayerIds || []).includes(playerId)) {
+        taggedPhotos.push({ ...item, matchId: m.id });
+      }
+    });
+  });
+
   return (
     <div>
       <div style={S.detailTopBar}>
@@ -1047,7 +1057,7 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
       </div>
 
       <div style={S.scoreboard}>
-        <JerseyBadge number={player.number} size={54} />
+        <PlayerAvatar player={player} size={64} />
         <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 600, marginTop: 10, textAlign: "center" }}>{player.name}</div>
         <div style={S.dimText}>{formatPositions(player)}{player.ativo === false ? " · fora do elenco atual" : ""}</div>
         <div style={{ ...S.recordGrid, marginTop: 16, gridTemplateColumns: isGoalkeeper ? "repeat(2, 1fr)" : "repeat(3, 1fr)" }}>
@@ -1081,6 +1091,19 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
             <div style={S.infoRow}><span style={S.dimText}>Residente no município</span><span>{player.resident ? "Sim" : "Não"}</span></div>
           )}
         </div>
+      )}
+
+      {taggedPhotos.length > 0 && (
+        <>
+          <SectionHeader title="Fotos" />
+          <div style={S.taggedPhotoGrid}>
+            {taggedPhotos.map((item) => (
+              <div key={item.id} style={S.taggedPhotoItem}>
+                <MediaImage url={item.url} sourceUrl={item.sourceUrl} caption={item.caption} />
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <SectionHeader title="Partidas" />
@@ -1304,6 +1327,21 @@ function MatchDetail({ isAdmin, match, config, playerById, players, getOpponentN
                 {item.caption && item.type === "foto" && <div style={S.mediaCaption}>{item.caption}</div>}
                 {isAdmin && <button style={S.smallIconBtn} onClick={() => onRemoveMedia(item.id)} aria-label="Remover mídia"><Trash2 size={13} color="var(--text-dim)" /></button>}
               </div>
+              {item.taggedPlayerIds && item.taggedPlayerIds.length > 0 && (
+                <div style={S.mediaTagRow}>
+                  <span style={S.dimText}>Com: </span>
+                  {item.taggedPlayerIds.map((pid, i) => {
+                    const p = playerById(pid);
+                    if (!p) return null;
+                    return (
+                      <span key={pid}>
+                        <PlayerLink player={p} onOpenPlayer={onOpenPlayer}>{p.name}</PlayerLink>
+                        {i < item.taggedPlayerIds.length - 1 ? ", " : ""}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1844,6 +1882,27 @@ function JerseyBadge({ number, size = 32, muted }) {
     </div>
   );
 }
+function PlayerAvatar({ player, size = 56 }) {
+  const [failed, setFailed] = useState(false);
+  if (!player?.photoUrl || failed) return <JerseyBadge number={player?.number} size={size} />;
+  const finalUrl = toDirectImageUrl(player.photoUrl);
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <img
+        src={finalUrl} alt={player.name} referrerPolicy="no-referrer" onError={() => setFailed(true)}
+        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", border: "1.5px solid var(--turf)", display: "block" }}
+      />
+      <div style={{
+        position: "absolute", bottom: -2, right: -2, background: "var(--bg)", borderRadius: "50%",
+        border: "1.5px solid var(--turf)", width: size * 0.4, height: size * 0.4,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "var(--font-display)", fontSize: size * 0.2, fontWeight: 600, color: "var(--turf)",
+      }}>
+        {player.number ?? "–"}
+      </div>
+    </div>
+  );
+}
 function FloatingAddButton({ onClick, label }) {
   return <button style={S.fab} onClick={onClick} aria-label={label} title={label}><Plus size={24} color="var(--bg)" /></button>;
 }
@@ -2212,6 +2271,7 @@ function AddPlayerModal({ player, onClose, onSave }) {
   const existingPositions = getPositions(player);
   const [name, setName] = useState(player?.name || "");
   const [fullName, setFullName] = useState(player?.fullName || "");
+  const [photoUrl, setPhotoUrl] = useState(player?.photoUrl || "");
   const [birthDate, setBirthDate] = useState(player?.birthDate || "");
   const [resident, setResident] = useState(player?.resident ?? "");
   const [preferredFoot, setPreferredFoot] = useState(player?.preferredFoot || "");
@@ -2227,6 +2287,7 @@ function AddPlayerModal({ player, onClose, onSave }) {
     if (!name.trim()) return;
     onSave({
       id: player?.id || uid(), name: name.trim(), fullName: fullName.trim(),
+      photoUrl: photoUrl.trim() || null,
       birthDate: birthDate || null, resident: resident === "" ? null : resident === "sim",
       preferredFoot: preferredFoot || null,
       number: number === "" ? null : Number(number),
@@ -2238,6 +2299,10 @@ function AddPlayerModal({ player, onClose, onSave }) {
     <ModalShell title={player ? "Editar jogador" : "Novo jogador"} onClose={onClose} footer={<button style={S.primaryBtn} onClick={save}>Salvar</button>}>
       <Field label="Nome (usado no app)"><input style={S.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Cebola" /></Field>
       <Field label="Nome completo (opcional)"><input style={S.input} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nome completo pra súmula/documentos" /></Field>
+      <Field label="Foto de perfil (link, opcional)">
+        <input style={S.input} value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://... (Drive, Postimages etc.)" />
+        <p style={S.helpText}>Mesma lógica das fotos de partida: cole o link de uma imagem já hospedada. Se não carregar, o app volta a mostrar só o número da camisa.</p>
+      </Field>
       <div style={{ display: "flex", gap: 10 }}>
         <Field label="Número"><input style={S.input} type="number" min="0" max="99" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="10" /></Field>
         <Field label="Posição principal">
@@ -2640,16 +2705,20 @@ function toDirectImageUrl(url) {
   return trimmed;
 }
 
-function AddMediaModal({ onClose, onSave }) {
+function AddMediaModal({ players, onClose, onSave }) {
   const [type, setType] = useState("foto");
   const [url, setUrl] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [caption, setCaption] = useState("");
+  const [taggedPlayerIds, setTaggedPlayerIds] = useState([]);
   const isDrive = url.includes("drive.google.com");
+  function toggleTag(playerId) {
+    setTaggedPlayerIds((ids) => ids.includes(playerId) ? ids.filter((id) => id !== playerId) : [...ids, playerId]);
+  }
   function save() {
     if (!url.trim()) return;
     const finalUrl = type === "foto" ? toDirectImageUrl(url) : url.trim();
-    onSave({ id: uid(), type, url: finalUrl, sourceUrl: sourceUrl.trim() || null, caption: caption.trim() });
+    onSave({ id: uid(), type, url: finalUrl, sourceUrl: sourceUrl.trim() || null, caption: caption.trim(), taggedPlayerIds });
   }
   return (
     <ModalShell title="Adicionar mídia" onClose={onClose} footer={<button style={S.primaryBtn} onClick={save} disabled={!url.trim()}>Adicionar</button>}>
@@ -2670,6 +2739,20 @@ function AddMediaModal({ onClose, onSave }) {
         </Field>
       )}
       <Field label="Legenda (opcional)"><input style={S.input} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Ex: Gol do título" /></Field>
+      <Field label="Marcar jogadores (opcional)">
+        {players.length === 0 ? (
+          <p style={S.helpText}>Nenhum jogador cadastrado ainda.</p>
+        ) : (
+          <div style={{ maxHeight: 180, overflowY: "auto" }}>
+            {players.map((p) => (
+              <label key={p.id} style={S.positionCheckRow}>
+                <input type="checkbox" checked={taggedPlayerIds.includes(p.id)} onChange={() => toggleTag(p.id)} />
+                #{p.number ?? "-"} {p.name}
+              </label>
+            ))}
+          </div>
+        )}
+      </Field>
       <p style={S.helpText}>
         A miniatura precisa ser um link de imagem direta — Imgur ou Postimages costumam ser mais confiáveis que o Drive para isso.
         {type === "foto" ? " Se preencher o link da pasta/álbum, tocar na foto leva pra lá; senão, leva para o próprio link da miniatura." : ""}
@@ -2780,6 +2863,9 @@ const S = {
   mediaCard: { marginBottom: 12 },
   mediaImg: { width: "100%", borderRadius: 10, display: "block" },
   mediaCaption: { fontSize: 12, color: "var(--text-dim)", marginTop: 4 },
+  mediaTagRow: { fontSize: 12, marginTop: 6 },
+  taggedPhotoGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 },
+  taggedPhotoItem: { borderRadius: 10, overflow: "hidden" },
   mediaVideoRow: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, color: "var(--text)", textDecoration: "none", fontSize: 13.5 },
   mediaFallback: { display: "flex", alignItems: "center", gap: 10, padding: "12px", background: "var(--surface-2)", border: "1px dashed var(--line)", borderRadius: 10, color: "var(--text-dim)", textDecoration: "none", fontSize: 12.5, lineHeight: 1.4 },
   playerGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
