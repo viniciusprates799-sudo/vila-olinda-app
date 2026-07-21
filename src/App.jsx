@@ -1046,7 +1046,7 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
   matches.forEach((m) => {
     (m.media || []).forEach((item) => {
       if (item.type === "foto" && (item.taggedPlayerIds || []).includes(playerId)) {
-        taggedPhotos.push({ ...item, matchId: m.id });
+        taggedPhotos.push({ ...item, matchId: m.id, matchLabel: `${getOpponentName(m)} · ${formatDateShort(m.date)}` });
       }
     });
   });
@@ -1128,8 +1128,9 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
           ) : (
             <div style={S.taggedPhotoGrid}>
               {taggedPhotos.map((item) => (
-                <div key={item.id} style={S.taggedPhotoItem}>
-                  <MediaImage url={item.url} sourceUrl={item.sourceUrl} caption={item.caption} />
+                <div key={item.id} style={{ ...S.taggedPhotoItem, cursor: "pointer" }} onClick={() => onOpenMatch(item.matchId)}>
+                  <MediaImage url={item.url} sourceUrl={item.sourceUrl} disableLink />
+                  <div style={S.taggedPhotoCaption}>{item.matchLabel}</div>
                 </div>
               ))}
             </div>
@@ -1173,6 +1174,7 @@ function MatchDetail({ isAdmin, match, config, playerById, players, getOpponentN
   const media = match.media || [];
   const venueName = getVenueName(match);
   const [copied, setCopied] = useState(false);
+  const [matchTab, setMatchTab] = useState("eventos");
 
   function handleShareWhatsApp() {
     const text = buildShareText(match, config, playerById, getOpponentName, getCompetitionInfo, getVenueName);
@@ -1230,144 +1232,170 @@ function MatchDetail({ isAdmin, match, config, playerById, players, getOpponentN
         {copied && <div style={{ ...S.dimText, marginTop: 6 }}>Texto copiado ✓</div>}
       </div>
 
-      {(isFinished && match.scoreTeam === match.scoreOpponent) || match.penaltyShootout ? (
+      <div style={{ display: "flex", gap: 8, marginTop: 20, marginBottom: 14 }}>
+        <button style={{ ...S.segmentBtn, ...(matchTab === "eventos" ? S.segmentBtnActive : {}) }} onClick={() => setMatchTab("eventos")}>Eventos</button>
+        <button style={{ ...S.segmentBtn, ...(matchTab === "escalacao" ? S.segmentBtnActive : {}) }} onClick={() => setMatchTab("escalacao")}>Escalação</button>
+        <button style={{ ...S.segmentBtn, ...(matchTab === "midia" ? S.segmentBtnActive : {}) }} onClick={() => setMatchTab("midia")}>Mídia{media.length > 0 ? ` (${media.length})` : ""}</button>
+      </div>
+
+      {matchTab === "eventos" && (
         <>
-          <SectionHeader title="Disputa de pênaltis" action={isAdmin ? { label: match.penaltyShootout ? "Editar" : "Adicionar", onClick: onEditPenalties } : undefined} />
-          {!match.penaltyShootout ? (
-            <EmptyState text="Empate no tempo normal? Registre aqui a disputa de pênaltis." />
-          ) : (
-            <div style={S.card}>
-              <div style={{ textAlign: "center", marginBottom: 14 }}>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 600 }}>
-                  {match.penaltyShootout.ourKicks.filter((k) => k.scored).length}
-                  <span style={{ color: "var(--text-dim)", fontSize: 20 }}> x </span>
-                  {match.penaltyShootout.opponentKicks.filter((k) => k.result === "gol").length}
-                </div>
-                <div style={S.dimText}>Pênaltis</div>
-              </div>
-              <div style={S.penaltyHeaderRow}>
-                <span style={{ flex: 1, textAlign: "right" }}>{config.name}</span>
-                <span style={S.dimText}>#</span>
-                <span style={{ flex: 1 }}>Adversário</span>
-              </div>
-              {Array.from({ length: Math.max(match.penaltyShootout.ourKicks.length, match.penaltyShootout.opponentKicks.length) }).map((_, i) => {
-                const ourKick = match.penaltyShootout.ourKicks[i];
-                const theirKick = match.penaltyShootout.opponentKicks[i];
-                const p = ourKick ? playerById(ourKick.playerId) : null;
-                return (
-                  <div key={i} style={S.penaltyPairRow}>
-                    <div style={S.penaltySide}>
-                      {ourKick ? (
-                        <><span>{p ? p.name : "Jogador removido"}</span><span style={{ fontSize: 15 }}>{ourKick.scored ? "✅" : "❌"}</span></>
-                      ) : <span style={S.dimText}>—</span>}
-                    </div>
-                    <span style={S.penaltyRoundNumber}>{i + 1}</span>
-                    <div style={{ ...S.penaltySide, justifyContent: "flex-start" }}>
-                      {theirKick ? (
-                        <><span style={{ fontSize: 15 }}>{theirKick.result === "gol" ? "✅" : theirKick.result === "defendida" ? "🧤" : "❌"}</span><span>{theirKick.result === "gol" ? "Gol" : theirKick.result === "defendida" ? "Defendida" : "Perdida"}</span></>
-                      ) : <span style={S.dimText}>—</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      ) : null}
-
-      <SectionHeader title="Escalação" action={isAdmin ? { label: "Gerenciar", onClick: onEditLineup } : undefined} />
-      {!hasLineup ? (
-        <EmptyState text="Escalação ainda não montada. Toque em Gerenciar para escalar o time no campo." />
-      ) : (
-        <div style={S.card}>
-          <Pitch formation={formation} slots={slots} playersById={playerById} activeSlotId={null} onSlotClick={(slotId) => { const pid = slots[slotId]; if (pid) onOpenPlayer(pid); }} events={events} captainId={match.lineup?.captainId} />
-          {bench.length > 0 && (
+          {((isFinished && match.scoreTeam === match.scoreOpponent) || match.penaltyShootout) ? (
             <>
-              <div style={{ ...S.lineupLabel, marginTop: 14 }}>Banco</div>
-              {groupPlayersByPosition(bench).map((g) => (
-                <div key={g.label} style={{ marginBottom: 10 }}>
-                  <div style={S.benchGroupLabel}>{g.label}</div>
-                  <div style={S.lineupGrid}>
-                    {g.players.map((p) => (
-                      <div key={p.id} style={{ ...S.lineupChip, cursor: "pointer" }} onClick={() => onOpenPlayer(p.id)}><JerseyBadge number={p.number} size={26} muted /><span>{p.name}{match.lineup?.captainId === p.id ? " 🅲" : ""}{getPlayerBadges(p.id, events) ? ` ${getPlayerBadges(p.id, events)}` : ""}</span></div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-      )}
-
-      <SectionHeader title="Comissão técnica" action={isAdmin ? { label: "Editar", onClick: onEditStaff } : undefined} />
-      {!match.tecnicoId && !match.auxiliarTecnicoId ? (
-        <EmptyState text="Nenhum membro da comissão técnica definido para esta partida." />
-      ) : (
-        <div style={S.card}>
-          <div style={S.staffGrid}>
-            {match.tecnicoId && getStaffName(match.tecnicoId) && (
-              <div style={S.staffRow}><div style={S.staffAvatar}>T</div><div><div style={S.eventMain}>{getStaffName(match.tecnicoId)}</div><div style={S.eventSub}>Técnico</div></div></div>
-            )}
-            {match.auxiliarTecnicoId && getStaffName(match.auxiliarTecnicoId) && (
-              <div style={S.staffRow}><div style={S.staffAvatar}>A</div><div><div style={S.eventMain}>{getStaffName(match.auxiliarTecnicoId)}</div><div style={S.eventSub}>Auxiliar técnico</div></div></div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <SectionHeader title="Eventos da partida" action={isAdmin ? { label: "Adicionar", onClick: onAddEvent } : undefined} />
-      {events.length === 0 ? (
-        <EmptyState text="Nenhum gol ou cartão registrado ainda." />
-      ) : (
-        <div style={S.card}>{events.map((e) => <EventRow key={e.id} event={e} scoreAfter={runningScores[e.id]} playerById={playerById} onOpenPlayer={onOpenPlayer} isAdmin={isAdmin} onEdit={() => onEditEvent(e)} onRemove={() => onRemoveEvent(e.id)} />)}</div>
-      )}
-
-      <SectionHeader title="Mídias" action={isAdmin ? { label: "Adicionar", onClick: onAddMedia } : undefined} />
-      {media.length === 0 ? (
-        <EmptyState text="Nenhuma foto ou vídeo ainda. Cole o link de uma imagem ou de um vídeo hospedado (Drive, YouTube etc.)." />
-      ) : (
-        <div>
-          {media.map((item) => (
-            <div key={item.id} style={S.mediaCard}>
-              {item.type === "foto" ? (
-                <MediaImage url={item.url} sourceUrl={item.sourceUrl} caption={item.caption} />
+              <SectionHeader title="Disputa de pênaltis" action={isAdmin ? { label: match.penaltyShootout ? "Editar" : "Adicionar", onClick: onEditPenalties } : undefined} />
+              {!match.penaltyShootout ? (
+                <EmptyState text="Empate no tempo normal? Registre aqui a disputa de pênaltis." />
               ) : (
-                <a href={item.sourceUrl || item.url} target="_blank" rel="noreferrer" style={S.mediaVideoRow}>
-                  <Video size={18} /> <span style={{ flex: 1 }}>{item.caption || "Assistir vídeo"}</span>
-                </a>
-              )}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                {item.caption && item.type === "foto" && <div style={S.mediaCaption}>{item.caption}</div>}
-                {isAdmin && <button style={S.smallIconBtn} onClick={() => onRemoveMedia(item.id)} aria-label="Remover mídia"><Trash2 size={13} color="var(--text-dim)" /></button>}
-              </div>
-              {item.taggedPlayerIds && item.taggedPlayerIds.length > 0 && (
-                <div style={S.mediaTagRow}>
-                  <span style={S.dimText}>Com: </span>
-                  {item.taggedPlayerIds.map((pid, i) => {
-                    const p = playerById(pid);
-                    if (!p) return null;
+                <div style={S.card}>
+                  <div style={{ textAlign: "center", marginBottom: 14 }}>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 600 }}>
+                      {match.penaltyShootout.ourKicks.filter((k) => k.scored).length}
+                      <span style={{ color: "var(--text-dim)", fontSize: 20 }}> x </span>
+                      {match.penaltyShootout.opponentKicks.filter((k) => k.result === "gol").length}
+                    </div>
+                    <div style={S.dimText}>Pênaltis</div>
+                  </div>
+                  <div style={S.penaltyHeaderRow}>
+                    <span style={{ flex: 1, textAlign: "right" }}>{config.name}</span>
+                    <span style={S.dimText}>#</span>
+                    <span style={{ flex: 1 }}>Adversário</span>
+                  </div>
+                  {Array.from({ length: Math.max(match.penaltyShootout.ourKicks.length, match.penaltyShootout.opponentKicks.length) }).map((_, i) => {
+                    const ourKick = match.penaltyShootout.ourKicks[i];
+                    const theirKick = match.penaltyShootout.opponentKicks[i];
+                    const p = ourKick ? playerById(ourKick.playerId) : null;
                     return (
-                      <span key={pid}>
-                        <PlayerLink player={p} onOpenPlayer={onOpenPlayer}>{p.name}</PlayerLink>
-                        {i < item.taggedPlayerIds.length - 1 ? ", " : ""}
-                      </span>
+                      <div key={i} style={S.penaltyPairRow}>
+                        <div style={S.penaltySide}>
+                          {ourKick ? (
+                            <><span>{p ? p.name : "Jogador removido"}</span><span style={{ fontSize: 15 }}>{ourKick.scored ? "✅" : "❌"}</span></>
+                          ) : <span style={S.dimText}>—</span>}
+                        </div>
+                        <span style={S.penaltyRoundNumber}>{i + 1}</span>
+                        <div style={{ ...S.penaltySide, justifyContent: "flex-start" }}>
+                          {theirKick ? (
+                            <><span style={{ fontSize: 15 }}>{theirKick.result === "gol" ? "✅" : theirKick.result === "defendida" ? "🧤" : "❌"}</span><span>{theirKick.result === "gol" ? "Gol" : theirKick.result === "defendida" ? "Defendida" : "Perdida"}</span></>
+                          ) : <span style={S.dimText}>—</span>}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
               )}
+            </>
+          ) : null}
+
+          <SectionHeader title="Eventos da partida" action={isAdmin ? { label: "Adicionar", onClick: onAddEvent } : undefined} />
+          {events.length === 0 ? (
+            <EmptyState text="Nenhum gol ou cartão registrado ainda." />
+          ) : (
+            <div style={S.card}>{events.map((e) => <EventRow key={e.id} event={e} scoreAfter={runningScores[e.id]} playerById={playerById} onOpenPlayer={onOpenPlayer} isAdmin={isAdmin} onEdit={() => onEditEvent(e)} onRemove={() => onRemoveEvent(e.id)} />)}</div>
+          )}
+        </>
+      )}
+
+      {matchTab === "escalacao" && (
+        <>
+          <SectionHeader title="Escalação" action={isAdmin ? { label: "Gerenciar", onClick: onEditLineup } : undefined} />
+          {!hasLineup ? (
+            <EmptyState text="Escalação ainda não montada. Toque em Gerenciar para escalar o time no campo." />
+          ) : (
+            <div style={S.card}>
+              <Pitch formation={formation} slots={slots} playersById={playerById} activeSlotId={null} onSlotClick={(slotId) => { const pid = slots[slotId]; if (pid) onOpenPlayer(pid); }} events={events} captainId={match.lineup?.captainId} />
+              {bench.length > 0 && (
+                <>
+                  <div style={{ ...S.lineupLabel, marginTop: 14 }}>Banco</div>
+                  {groupPlayersByPosition(bench).map((g) => (
+                    <div key={g.label} style={{ marginBottom: 10 }}>
+                      <div style={S.benchGroupLabel}>{g.label}</div>
+                      <div style={S.lineupGrid}>
+                        {g.players.map((p) => (
+                          <div key={p.id} style={{ ...S.lineupChip, cursor: "pointer" }} onClick={() => onOpenPlayer(p.id)}><JerseyBadge number={p.number} size={26} muted /><span>{p.name}{match.lineup?.captainId === p.id ? " 🅲" : ""}{getPlayerBadges(p.id, events) ? ` ${getPlayerBadges(p.id, events)}` : ""}</span></div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
-          ))}
-        </div>
+          )}
+
+          <SectionHeader title="Comissão técnica" action={isAdmin ? { label: "Editar", onClick: onEditStaff } : undefined} />
+          {!match.tecnicoId && !match.auxiliarTecnicoId ? (
+            <EmptyState text="Nenhum membro da comissão técnica definido para esta partida." />
+          ) : (
+            <div style={S.card}>
+              <div style={S.staffGrid}>
+                {match.tecnicoId && getStaffName(match.tecnicoId) && (
+                  <div style={S.staffRow}><div style={S.staffAvatar}>T</div><div><div style={S.eventMain}>{getStaffName(match.tecnicoId)}</div><div style={S.eventSub}>Técnico</div></div></div>
+                )}
+                {match.auxiliarTecnicoId && getStaffName(match.auxiliarTecnicoId) && (
+                  <div style={S.staffRow}><div style={S.staffAvatar}>A</div><div><div style={S.eventMain}>{getStaffName(match.auxiliarTecnicoId)}</div><div style={S.eventSub}>Auxiliar técnico</div></div></div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {matchTab === "midia" && (
+        <>
+          <SectionHeader title="Mídias" action={isAdmin ? { label: "Adicionar", onClick: onAddMedia } : undefined} />
+          {media.length === 0 ? (
+            <EmptyState text="Nenhuma foto ou vídeo ainda. Cole o link de uma imagem ou de um vídeo hospedado (Drive, YouTube etc.)." />
+          ) : (
+            <div>
+              {media.map((item) => (
+                <div key={item.id} style={S.mediaCard}>
+                  {item.type === "foto" ? (
+                    <MediaImage url={item.url} sourceUrl={item.sourceUrl} caption={item.caption} />
+                  ) : (
+                    <a href={item.sourceUrl || item.url} target="_blank" rel="noreferrer" style={S.mediaVideoRow}>
+                      <Video size={18} /> <span style={{ flex: 1 }}>{item.caption || "Assistir vídeo"}</span>
+                    </a>
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    {item.caption && item.type === "foto" && <div style={S.mediaCaption}>{item.caption}</div>}
+                    {isAdmin && <button style={S.smallIconBtn} onClick={() => onRemoveMedia(item.id)} aria-label="Remover mídia"><Trash2 size={13} color="var(--text-dim)" /></button>}
+                  </div>
+                  {item.taggedPlayerIds && item.taggedPlayerIds.length > 0 && (
+                    <div style={S.mediaTagRow}>
+                      <span style={S.dimText}>Com: </span>
+                      {item.taggedPlayerIds.map((pid, i) => {
+                        const p = playerById(pid);
+                        if (!p) return null;
+                        return (
+                          <span key={pid}>
+                            <PlayerLink player={p} onOpenPlayer={onOpenPlayer}>{p.name}</PlayerLink>
+                            {i < item.taggedPlayerIds.length - 1 ? ", " : ""}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function MediaImage({ url, sourceUrl, caption }) {
+function MediaImage({ url, sourceUrl, caption, disableLink }) {
   const [failed, setFailed] = useState(false);
   const finalUrl = toDirectImageUrl(url);
   const dest = sourceUrl || url;
   if (failed) {
+    if (disableLink) {
+      return (
+        <div style={S.mediaFallback}>
+          <ImageIcon size={18} />
+          <span style={{ flex: 1 }}>Não consegui carregar essa imagem aqui.</span>
+        </div>
+      );
+    }
     return (
       <a href={dest} target="_blank" rel="noreferrer" style={S.mediaFallback}>
         <ImageIcon size={18} />
@@ -1377,9 +1405,11 @@ function MediaImage({ url, sourceUrl, caption }) {
       </a>
     );
   }
+  const img = <img src={finalUrl} alt={caption || "Foto da partida"} style={S.mediaImg} referrerPolicy="no-referrer" onError={() => setFailed(true)} />;
+  if (disableLink) return img;
   return (
     <a href={dest} target="_blank" rel="noreferrer">
-      <img src={finalUrl} alt={caption || "Foto da partida"} style={S.mediaImg} referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+      {img}
     </a>
   );
 }
@@ -2879,6 +2909,7 @@ const S = {
   mediaTagRow: { fontSize: 12, marginTop: 6 },
   taggedPhotoGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 },
   taggedPhotoItem: { borderRadius: 10, overflow: "hidden" },
+  taggedPhotoCaption: { fontSize: 11, color: "var(--text-dim)", padding: "5px 2px 0" },
   mediaVideoRow: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, color: "var(--text)", textDecoration: "none", fontSize: 13.5 },
   mediaFallback: { display: "flex", alignItems: "center", gap: 10, padding: "12px", background: "var(--surface-2)", border: "1px dashed var(--line)", borderRadius: 10, color: "var(--text-dim)", textDecoration: "none", fontSize: 12.5, lineHeight: 1.4 },
   playerGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
