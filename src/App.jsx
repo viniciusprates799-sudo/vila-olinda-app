@@ -375,7 +375,7 @@ export default function App() {
               <JogosTab
                 key={`${jogosJumpFilter.type}-${jogosJumpFilter.competitionId}`}
                 isAdmin={isAdmin}
-                upcoming={upcoming} pendingResult={pendingResult} finished={finished} opponents={opponents} competitions={competitions}
+                upcoming={upcoming} pendingResult={pendingResult} finished={finished} opponents={opponents} competitions={competitions} players={players}
                 getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName}
                 onOpenMatch={(id) => setSelectedMatchId(id)} onAddMatch={() => setShowAddMatch(true)}
                 initialFilterType={jogosJumpFilter.type} initialFilterCompetitionId={jogosJumpFilter.competitionId}
@@ -570,16 +570,27 @@ function Header({ config, isAdmin, onOpenConfig, onOpenLogin }) {
 }
 
 /* ---------- Jogos Tab ---------- */
-function JogosTab({ isAdmin, upcoming, pendingResult, finished, opponents, competitions, getOpponentName, getCompetitionInfo, getVenueName, onOpenMatch, onAddMatch, initialFilterType, initialFilterCompetitionId }) {
+function JogosTab({ isAdmin, upcoming, pendingResult, finished, opponents, competitions, players, getOpponentName, getCompetitionInfo, getVenueName, onOpenMatch, onAddMatch, initialFilterType, initialFilterCompetitionId }) {
   const [filterType, setFilterType] = useState(initialFilterType || "todos");
   const [showPending, setShowPending] = useState(false);
   const [filterOpponentId, setFilterOpponentId] = useState("todos");
   const [filterCompetitionId, setFilterCompetitionId] = useState(initialFilterCompetitionId || "todas");
+  const [filterPlayerId, setFilterPlayerId] = useState("todos");
+  const [filterPlayerName, setFilterPlayerName] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  function matchHasPlayer(m, playerId) {
+    const slotIds = Object.values(m.lineup?.slots || {});
+    const benchIds = m.lineup?.bench || [];
+    return slotIds.includes(playerId) || benchIds.includes(playerId);
+  }
 
   const matchesFilter = (m) => {
     if (filterType !== "todos" && getCompetitionInfo(m).type !== filterType) return false;
     if (filterOpponentId !== "todos" && m.opponentId !== filterOpponentId) return false;
     if (filterCompetitionId !== "todas" && m.competitionId !== filterCompetitionId) return false;
+    if (filterPlayerId !== "todos" && !matchHasPlayer(m, filterPlayerId)) return false;
     return true;
   };
   const filteredUpcoming = upcoming.filter(matchesFilter);
@@ -599,8 +610,78 @@ function JogosTab({ isAdmin, upcoming, pendingResult, finished, opponents, compe
     festival: competitions.filter((c) => c.type === "festival"),
   };
 
+  const searchQuery = searchText.trim().toLowerCase();
+  const matchingPlayers = searchQuery ? players.filter((p) => p.name.toLowerCase().includes(searchQuery)).slice(0, 5) : [];
+  const matchingOpponents = searchQuery ? opponents.filter((o) => o.name.toLowerCase().includes(searchQuery)).slice(0, 5) : [];
+  const matchingCompetitions = searchQuery ? competitions.filter((c) => c.name.toLowerCase().includes(searchQuery)).slice(0, 5) : [];
+  const hasSuggestions = matchingPlayers.length > 0 || matchingOpponents.length > 0 || matchingCompetitions.length > 0;
+
+  function clearPlayerFilter() {
+    setFilterPlayerId("todos");
+    setFilterPlayerName("");
+    setSearchText("");
+  }
+
   return (
     <div>
+      <div style={{ position: "relative", marginTop: 10 }}>
+        <input
+          style={S.searchInput}
+          value={searchText}
+          onChange={(e) => { setSearchText(e.target.value); setSearchOpen(true); }}
+          onFocus={() => setSearchOpen(true)}
+          onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+          placeholder="Buscar por jogador, adversário ou liga…"
+        />
+        {searchOpen && searchQuery && (
+          <div style={S.searchDropdown}>
+            {!hasSuggestions ? (
+              <div style={{ ...S.dimText, padding: "10px 12px" }}>Nada encontrado.</div>
+            ) : (
+              <>
+                {matchingPlayers.length > 0 && (
+                  <>
+                    <div style={S.searchGroupLabel}>Jogadores</div>
+                    {matchingPlayers.map((p) => (
+                      <button key={p.id} style={S.searchOption} onMouseDown={() => { setFilterPlayerId(p.id); setFilterPlayerName(p.name); setSearchText(p.name); setSearchOpen(false); }}>
+                        <JerseyBadge number={p.number} size={22} /> {p.name}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {matchingOpponents.length > 0 && (
+                  <>
+                    <div style={S.searchGroupLabel}>Adversários</div>
+                    {matchingOpponents.map((o) => (
+                      <button key={o.id} style={S.searchOption} onMouseDown={() => { setFilterOpponentId(o.id); setSearchText(o.name); setSearchOpen(false); }}>
+                        {o.name}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {matchingCompetitions.length > 0 && (
+                  <>
+                    <div style={S.searchGroupLabel}>Competições</div>
+                    {matchingCompetitions.map((c) => (
+                      <button key={c.id} style={S.searchOption} onMouseDown={() => { setFilterCompetitionId(c.id); setSearchText(c.name); setSearchOpen(false); }}>
+                        {c.name}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {filterPlayerId !== "todos" && (
+        <div style={S.playerFilterChip}>
+          <span>Jogador: {filterPlayerName}</span>
+          <button style={S.smallIconBtn} onClick={clearPlayerFilter} aria-label="Limpar filtro de jogador"><X size={13} color="var(--text-dim)" /></button>
+        </div>
+      )}
+
       <div style={S.filterRow}>
         <select style={S.filterSelect} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
           <option value="todos">Todos os tipos</option>
@@ -2640,6 +2721,11 @@ const S = {
   content: { flex: 1, overflowY: "auto", padding: "4px 16px 90px" },
   filterRow: { display: "flex", gap: 8, marginTop: 10, marginBottom: 4 },
   filterSelect: { flex: 1, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 9, padding: "8px 8px", color: "var(--text)", fontSize: 12.5 },
+  searchInput: { width: "100%", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 9, padding: "10px 12px", color: "var(--text)", fontSize: 13.5 },
+  searchDropdown: { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, zIndex: 10, maxHeight: 260, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.4)" },
+  searchGroupLabel: { fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5, padding: "8px 12px 4px" },
+  searchOption: { width: "100%", display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: "8px 12px", color: "var(--text)", fontSize: 13, textAlign: "left" },
+  playerFilterChip: { display: "inline-flex", alignItems: "center", gap: 6, background: "var(--turf-dim)", color: "var(--turf)", border: "1px solid var(--turf)", borderRadius: 999, padding: "4px 6px 4px 12px", fontSize: 12, fontWeight: 600, marginTop: 8 },
   h2hCard: { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", marginTop: 12 },
   h2hTitle: { fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10, textAlign: "center" },
   sectionHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 0 10px" },
