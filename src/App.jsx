@@ -1026,6 +1026,7 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
   const player = players.find((p) => p.id === playerId);
   if (!player) return <EmptyState text="Jogador não encontrado." />;
 
+  const [profileTab, setProfileTab] = useState("partidas");
   const isGoalkeeper = getPositions(player)[0] === "Goleiro";
   const stats = isGoalkeeper ? getGoalkeeperStats(playerId) : getPlayerStats(playerId);
 
@@ -1093,35 +1094,47 @@ function PlayerProfile({ playerId, players, matches, getPlayerStats, getGoalkeep
         </div>
       )}
 
-      {taggedPhotos.length > 0 && (
+      <div style={{ display: "flex", gap: 8, marginTop: 20, marginBottom: 14 }}>
+        <button style={{ ...S.segmentBtn, ...(profileTab === "partidas" ? S.segmentBtnActive : {}) }} onClick={() => setProfileTab("partidas")}>
+          Partidas
+        </button>
+        <button style={{ ...S.segmentBtn, ...(profileTab === "midia" ? S.segmentBtnActive : {}) }} onClick={() => setProfileTab("midia")}>
+          Mídia{taggedPhotos.length > 0 ? ` (${taggedPhotos.length})` : ""}
+        </button>
+      </div>
+
+      {profileTab === "partidas" ? (
         <>
-          <SectionHeader title="Fotos" />
-          <div style={S.taggedPhotoGrid}>
-            {taggedPhotos.map((item) => (
-              <div key={item.id} style={S.taggedPhotoItem}>
-                <MediaImage url={item.url} sourceUrl={item.sourceUrl} caption={item.caption} />
-              </div>
-            ))}
-          </div>
+          {playerMatches.length === 0 ? (
+            <EmptyState text="Esse jogador ainda não participou de nenhuma partida registrada." />
+          ) : (
+            <div style={S.card}>
+              {playerMatches.map((m) => (
+                <PlayerCompactMatchRow key={m.id} match={m} playerId={playerId} didPlay={didPlayerPlay(m)} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} onClick={() => onOpenMatch(m.id)} />
+              ))}
+            </div>
+          )}
+          {playerMatches.length > 0 && (
+            <div style={S.legendBox}>
+              <span><b>O</b> oficial</span><span><b>A</b> amistoso</span><span><b>F</b> festival</span>
+              <span>⚽ gol</span><span>🅰️ assistência</span><span>🟨 amarelo</span><span>🟥 vermelho</span><span>🔄 substituição</span><span>🧤 defesa de pênalti</span>
+            </div>
+          )}
         </>
-      )}
-
-      <SectionHeader title="Partidas" />
-      {playerMatches.length === 0 ? (
-        <EmptyState text="Esse jogador ainda não participou de nenhuma partida registrada." />
       ) : (
-        <div style={S.card}>
-          {playerMatches.map((m) => (
-            <PlayerCompactMatchRow key={m.id} match={m} playerId={playerId} didPlay={didPlayerPlay(m)} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} onClick={() => onOpenMatch(m.id)} />
-          ))}
-        </div>
-      )}
-
-      {playerMatches.length > 0 && (
-        <div style={S.legendBox}>
-          <span><b>O</b> oficial</span><span><b>A</b> amistoso</span><span><b>F</b> festival</span>
-          <span>⚽ gol</span><span>🅰️ assistência</span><span>🟨 amarelo</span><span>🟥 vermelho</span><span>🔄 substituição</span><span>🧤 defesa de pênalti</span>
-        </div>
+        <>
+          {taggedPhotos.length === 0 ? (
+            <EmptyState text="Esse jogador ainda não foi marcado em nenhuma foto." />
+          ) : (
+            <div style={S.taggedPhotoGrid}>
+              {taggedPhotos.map((item) => (
+                <div key={item.id} style={S.taggedPhotoItem}>
+                  <MediaImage url={item.url} sourceUrl={item.sourceUrl} caption={item.caption} />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
