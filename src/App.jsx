@@ -572,6 +572,7 @@ function Header({ config, isAdmin, onOpenConfig, onOpenLogin }) {
 /* ---------- Jogos Tab ---------- */
 function JogosTab({ isAdmin, upcoming, pendingResult, finished, opponents, competitions, getOpponentName, getCompetitionInfo, getVenueName, onOpenMatch, onAddMatch, initialFilterType, initialFilterCompetitionId }) {
   const [filterType, setFilterType] = useState(initialFilterType || "todos");
+  const [showPending, setShowPending] = useState(false);
   const [filterOpponentId, setFilterOpponentId] = useState("todos");
   const [filterCompetitionId, setFilterCompetitionId] = useState(initialFilterCompetitionId || "todas");
 
@@ -642,19 +643,23 @@ function JogosTab({ isAdmin, upcoming, pendingResult, finished, opponents, compe
       ))}
 
       {pendingResult.length > 0 && (
-        <>
-          <SectionHeader title="Aguardando resultado" />
-          {filteredPending.length === 0 ? (
-            <EmptyState text="Nenhum jogo pendente com esse filtro." />
-          ) : (
-            <>
-              <p style={S.helpText}>Já aconteceram, mas ainda não têm placar lançado.</p>
-              {filteredPending.map((m) => (
-                <MatchCard key={m.id} match={m} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName} onClick={() => onOpenMatch(m.id)} />
-              ))}
-            </>
+        <div style={S.positionGroup}>
+          <button style={S.inactiveToggle} onClick={() => setShowPending(!showPending)}>
+            {showPending ? "▾" : "▸"} Aguardando resultado ({pendingResult.length})
+          </button>
+          {showPending && (
+            filteredPending.length === 0 ? (
+              <div style={{ marginTop: 10 }}><EmptyState text="Nenhum jogo pendente com esse filtro." /></div>
+            ) : (
+              <div style={{ marginTop: 10 }}>
+                <p style={S.helpText}>Já aconteceram, mas ainda não têm placar lançado.</p>
+                {filteredPending.map((m) => (
+                  <MatchCard key={m.id} match={m} getOpponentName={getOpponentName} getCompetitionInfo={getCompetitionInfo} getVenueName={getVenueName} onClick={() => onOpenMatch(m.id)} />
+                ))}
+              </div>
+            )
           )}
-        </>
+        </div>
       )}
 
       <SectionHeader title="Resultados" />
@@ -718,21 +723,24 @@ function buildShareText(match, config, playerById, getOpponentName, getCompetiti
     const events = match.events || [];
     const timeLabel = (e) => e.minute != null ? `${e.minute}'` : (e.period === "1" ? "1ºT" : e.period === "2" ? "2ºT" : "");
     const goalEvents = events.filter((e) => e.type === "gol" || e.type === "golcontra" || e.type === "gol_adversario").sort((a, b) => eventSortValue(a) - eventSortValue(b));
+    const runningScores = computeRunningScores(goalEvents);
     if (goalEvents.length) {
       lines.push("");
       lines.push("🥅 *Gols:*");
       goalEvents.forEach((e) => {
+        const s = runningScores[e.id];
+        const scoreTag = s ? ` (${s.our}-${s.their})` : "";
         if (e.type === "gol") {
           const scorer = playerById(e.playerId);
           const assist = e.assistId ? playerById(e.assistId) : null;
-          let line = `⚽ ${timeLabel(e)} ${scorer ? scorer.name : "Jogador removido"}`;
+          let line = `⚽ ${timeLabel(e)} ${scorer ? scorer.name : "Jogador removido"}${scoreTag}`;
           if (e.golType) line += ` (${e.golType})`;
           if (assist) line += ` — assist. ${assist.name}`;
           lines.push(line);
         } else if (e.type === "golcontra") {
-          lines.push(`⚽ ${timeLabel(e)} Gol contra do adversário${e.note ? ` (${e.note})` : ""}`);
+          lines.push(`⚽ ${timeLabel(e)} Gol contra do adversário${scoreTag}${e.note ? ` (${e.note})` : ""}`);
         } else if (e.type === "gol_adversario") {
-          lines.push(`⚽ ${timeLabel(e)} Gol do adversário${e.golType ? ` (${e.golType})` : ""}${e.note ? ` — ${e.note}` : ""}`);
+          lines.push(`⚽ ${timeLabel(e)} Gol do adversário${scoreTag}${e.golType ? ` (${e.golType})` : ""}${e.note ? ` — ${e.note}` : ""}`);
         }
       });
     }
@@ -787,6 +795,19 @@ function eventSortValue(e) {
   const periodRank = e?.period === "2" ? 1 : 0;
   const minuteRank = e?.minute == null ? 9999 : e.minute;
   return periodRank * 10000 + minuteRank;
+}
+
+function computeRunningScores(sortedEvents) {
+  let our = 0, their = 0;
+  const map = {};
+  sortedEvents.forEach((e) => {
+    if (e.type === "gol" || e.type === "golcontra") our++;
+    if (e.type === "gol_adversario") their++;
+    if (e.type === "gol" || e.type === "golcontra" || e.type === "gol_adversario") {
+      map[e.id] = { our, their };
+    }
+  });
+  return map;
 }
 
 function matchTimestamp(m) {
@@ -1027,6 +1048,7 @@ function MatchDetail({ isAdmin, match, config, playerById, players, getOpponentN
   const comp = COMP_TYPES[compInfo.type] || COMP_TYPES.amistoso;
   const isFinished = match.status === "encerrado";
   const events = [...(match.events || [])].sort((a, b) => eventSortValue(a) - eventSortValue(b));
+  const runningScores = computeRunningScores(events);
   const formation = match.lineup?.formation || "4-4-2";
   const slots = match.lineup?.slots || {};
   const bench = (match.lineup?.bench || []).map(playerById).filter(Boolean);
@@ -1180,7 +1202,7 @@ function MatchDetail({ isAdmin, match, config, playerById, players, getOpponentN
       {events.length === 0 ? (
         <EmptyState text="Nenhum gol ou cartão registrado ainda." />
       ) : (
-        <div style={S.card}>{events.map((e) => <EventRow key={e.id} event={e} playerById={playerById} onOpenPlayer={onOpenPlayer} isAdmin={isAdmin} onEdit={() => onEditEvent(e)} onRemove={() => onRemoveEvent(e.id)} />)}</div>
+        <div style={S.card}>{events.map((e) => <EventRow key={e.id} event={e} scoreAfter={runningScores[e.id]} playerById={playerById} onOpenPlayer={onOpenPlayer} isAdmin={isAdmin} onEdit={() => onEditEvent(e)} onRemove={() => onRemoveEvent(e.id)} />)}</div>
       )}
 
       <SectionHeader title="Mídias" action={isAdmin ? { label: "Adicionar", onClick: onAddMedia } : undefined} />
@@ -1239,26 +1261,27 @@ function PlayerLink({ player, onOpenPlayer, children }) {
   );
 }
 
-function EventRow({ event, playerById, onOpenPlayer, isAdmin, onEdit, onRemove }) {
+function EventRow({ event, scoreAfter, playerById, onOpenPlayer, isAdmin, onEdit, onRemove }) {
   const scorer = playerById(event.playerId);
   const assist = event.assistId ? playerById(event.assistId) : null;
   const playerOut = event.playerOutId ? playerById(event.playerOutId) : null;
   const playerIn = event.playerInId ? playerById(event.playerInId) : null;
   const periodLabel = event.period === "1" ? "1ºT" : event.period === "2" ? "2ºT" : "";
   const timeLabel = event.minute != null ? `${event.minute}'${periodLabel ? ` ${periodLabel}` : ""}` : (periodLabel || "—");
+  const scoreLabel = scoreAfter ? ` (${scoreAfter.our}-${scoreAfter.their})` : "";
   return (
     <div style={S.eventRow}>
       <span style={S.eventMinute}>{timeLabel}</span>
       {event.type === "gol" && (
         <><span style={S.eventIcon}>⚽</span><div style={{ flex: 1 }}>
-          <div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink></div>
+          <div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink><span style={S.dimText}>{scoreLabel}</span></div>
           {event.golType && <div style={S.eventSub}>{event.golType}</div>}
           {assist && <div style={S.eventSub}>Assistência: <PlayerLink player={assist} onOpenPlayer={onOpenPlayer}>{assist.name}</PlayerLink></div>}
         </div></>
       )}
       {event.type === "gol_adversario" && (
         <><span style={S.eventIcon}>⚽</span><div style={{ flex: 1 }}>
-          <div style={S.eventMain}>Gol do adversário</div>
+          <div style={S.eventMain}>Gol do adversário<span style={S.dimText}>{scoreLabel}</span></div>
           {event.golType && <div style={S.eventSub}>{event.golType}</div>}
           {event.note && <div style={S.eventSub}>{event.note}</div>}
         </div></>
@@ -1276,7 +1299,7 @@ function EventRow({ event, playerById, onOpenPlayer, isAdmin, onEdit, onRemove }
         </div></>
       )}
       {event.type === "golcontra" && (
-        <><span style={S.eventIcon}>🥅</span><div style={{ flex: 1 }}><div style={S.eventMain}>Gol contra (a favor)</div><div style={S.eventSub}>Ponto para o nosso time{event.note ? ` · ${event.note}` : ""}</div></div></>
+        <><span style={S.eventIcon}>🥅</span><div style={{ flex: 1 }}><div style={S.eventMain}>Gol contra (a favor)<span style={S.dimText}>{scoreLabel}</span></div><div style={S.eventSub}>Ponto para o nosso time{event.note ? ` · ${event.note}` : ""}</div></div></>
       )}
       {event.type === "penaltidefendido" && (
         <><span style={S.eventIcon}>🧤</span><div style={{ flex: 1 }}><div style={S.eventMain}><PlayerLink player={scorer} onOpenPlayer={onOpenPlayer}>{scorer ? scorer.name : "Jogador removido"}</PlayerLink></div><div style={S.eventSub}>Pênalti defendido</div></div></>
@@ -1461,7 +1484,7 @@ function StatMini({ label, value }) {
 
 /* ---------- Stats Tab ---------- */
 function StatsTab({ isAdmin, matches, players, competitions, getCompetitionInfo, config, onUpdateStandings, onOpenPlayer }) {
-  const [filterCompetitionId, setFilterCompetitionId] = useState("todas");
+  const [filterCompetitionId, setFilterCompetitionId] = useState("tipo:oficial");
   const [showStandings, setShowStandings] = useState(false);
 
   const isTypeFilter = filterCompetitionId.startsWith("tipo:");
@@ -2378,10 +2401,19 @@ function EscalacaoModal({ match, players, onClose, onSave }) {
 }
 
 function AddEventModal({ match, players, event, onClose, onSave }) {
-  const onFieldIds = Object.values(match.lineup?.slots || {}).filter(Boolean);
+  const starterIds = Object.values(match.lineup?.slots || {}).filter(Boolean);
+  const priorSubs = (match.events || [])
+    .filter((e) => e.type === "substituicao" && e.id !== event?.id)
+    .sort((a, b) => eventSortValue(a) - eventSortValue(b));
+  const currentOnFieldSet = new Set(starterIds);
+  priorSubs.forEach((e) => {
+    if (e.playerOutId) currentOnFieldSet.delete(e.playerOutId);
+    if (e.playerInId) currentOnFieldSet.add(e.playerInId);
+  });
+  const onFieldIds = Array.from(currentOnFieldSet);
   const lineupIds = [...onFieldIds, ...(match.lineup?.bench || [])];
   const options = lineupIds.length > 0 ? players.filter((p) => lineupIds.includes(p.id)) : players;
-  const outOptions = onFieldIds.length > 0 ? players.filter((p) => onFieldIds.includes(p.id)) : players;
+  const outOptions = players.filter((p) => onFieldIds.includes(p.id) || p.id === event?.playerOutId);
   const gkId = match.lineup?.slots?.gk;
   const gkOptions = gkId ? players.filter((p) => p.id === gkId) : (players.filter((p) => getPositions(p).includes("Goleiro")).length > 0 ? players.filter((p) => getPositions(p).includes("Goleiro")) : options);
 
@@ -2396,7 +2428,7 @@ function AddEventModal({ match, players, event, onClose, onSave }) {
   const [period, setPeriod] = useState(event?.period || "");
   const [minute, setMinute] = useState(event?.minute ?? "");
 
-  const inOptions = players.filter((p) => p.id !== playerOutId && !onFieldIds.filter((id) => id !== playerOutId).includes(p.id));
+  const inOptions = players.filter((p) => (!onFieldIds.includes(p.id) || p.id === event?.playerInId) && p.id !== playerOutId);
   const needsPlayer = type === "gol" || type === "amarelo" || type === "vermelho" || type === "substituicao";
 
   const isValid = type === "substituicao" ? (playerOutId && playerInId && playerOutId !== playerInId)
